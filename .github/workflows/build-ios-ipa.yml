@@ -211,6 +211,11 @@ jobs:
       - name: Archive TVBox-iOS (unsigned)
         run: |
           mkdir -p build/ci
+          # pipefail: without it, "xcodebuild ... | tee archive.log"
+          # returns tee's exit code, so a failed archive would look
+          # successful and only fail later in Verify archive with no
+          # .app and no error message (failed run, 2026-11-20).
+          set -o pipefail
           xcodebuild archive \
             -project TVBox.xcodeproj \
             -scheme "$SCHEME" \
