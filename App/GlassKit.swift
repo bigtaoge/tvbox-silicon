@@ -329,6 +329,12 @@ enum Layout {
     static var posterColumns: [GridItem] {
         [GridItem(.adaptive(minimum: posterMin), spacing: gridSpacing, alignment: .top)]
     }
+    /// The vertical TVBox home's poster grid: exactly three columns, so a phone
+    /// never lands on two wide posters or four cramped ones when the width
+    /// changes (split view, Dynamic Type). Other grids keep `posterColumns`.
+    static var verticalPosterColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: gridSpacing, alignment: .top), count: 3)
+    }
     #if os(tvOS)
     static let maxWidth: CGFloat = 1800
     static let settingsWidth: CGFloat = 1200

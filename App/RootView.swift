@@ -141,9 +141,14 @@ struct RootView: View {
                 }
             }
             #else
-            // The system tab bar on every size class: iOS 26 floats it over content and
-            // collapses extra sections into More, which a hand-built bar imitated poorly.
+            #if os(iOS)
+            // Step 2 of the vertical TVBox rebuild: a single vertical page instead
+            // of the tab bar. Search, live TV, history, favourites and settings
+            // live in that page's top bar; tvOS keeps the tab bar for now.
+            RouteStack { VerticalTVBoxHomeView() }
+            #else
             platformTabs
+            #endif
             #endif
         }
         .onChange(of: store.section) { _, section in

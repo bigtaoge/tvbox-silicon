@@ -683,6 +683,13 @@ struct FormSettingsView: View {
                 TextField(L10n.text("Name (optional)"), text: $store.subscriptionName, prompt: Text(L10n.text("Name (optional)")))
                     .labelsHidden()
                     .onSubmit { add() }
+                TextField(L10n.text("User name (optional)"), text: $store.subscriptionUsername, prompt: Text(L10n.text("User name (optional)")))
+                    .labelsHidden()
+                    .autocorrectionDisabled()
+                    .onSubmit { add() }
+                SecureField(L10n.text("Password (optional)"), text: $store.subscriptionPassword, prompt: Text(L10n.text("Password (optional)")))
+                    .labelsHidden()
+                    .onSubmit { add() }
                 subscriptionActions
                 #endif
             } header: {
@@ -1359,6 +1366,20 @@ struct AddSubscriptionSheet: View {
                     else { Text(L10n.text("Paste the address of a TVBox JSON subscription, an M3U or TXT live playlist, or an AList server.")) }
                 }
                 Section {
+                    TextField(L10n.text("User name (optional)"), text: $store.subscriptionUsername, prompt: Text(L10n.text("User name (optional)")))
+                        .labelsHidden()
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.done)
+                        .onSubmit(add)
+                    SecureField(L10n.text("Password (optional)"), text: $store.subscriptionPassword, prompt: Text(L10n.text("Password (optional)")))
+                        .labelsHidden()
+                        .submitLabel(.done)
+                        .onSubmit(add)
+                } footer: {
+                    Text(L10n.text("Only if the subscription needs a sign-in, such as Xiaoya with forced login on (user name dav). The password is kept in the Keychain, not in the subscription list."))
+                }
+                Section {
                     Button { choosesFile = true } label: {
                         FormLabel(symbol: "doc.badge.plus", tint: .orange, title: L10n.text("Add from File…"))
                             .foregroundStyle(.primary)
@@ -1414,6 +1435,9 @@ struct SubscriptionDetailView: View {
     @State private var draft: String
     @State private var changing = false
     @State private var changeError: String?
+    @State private var credentialUsername = ""
+    @State private var credentialPassword = ""
+    @State private var credentialSaved = false
     init(entry: SubscriptionEntry) {
         self.entry = entry
         _address = State(initialValue: entry.address)
@@ -1478,8 +1502,26 @@ struct SubscriptionDetailView: View {
             Section {
                 Button(L10n.text("Remove"), role: .destructive) { confirmsRemoval = true }
             }
+            Section(L10n.text("Sign-in")) {
+                TextField(L10n.text("User name"), text: $credentialUsername, prompt: Text(L10n.text("dav")))
+                    .labelsHidden()
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                SecureField(L10n.text("Password"), text: $credentialPassword, prompt: Text(L10n.text("Password")))
+                    .labelsHidden()
+                HStack {
+                    Button(L10n.text("Save Sign-in")) { saveCredential() }.disabled(credentialUsername.isEmpty || credentialPassword.isEmpty || store.importing)
+                    Spacer()
+                    if credentialSaved { Text(L10n.text("Saved")).foregroundStyle(.secondary) }
+                }
+            } footer: {
+                Text(L10n.text("Only if this subscription needs a sign-in, such as Xiaoya with forced login on (user name dav). The password is kept in the Keychain. Saving refreshes the subscription."))
+            }
         }.settingsRows() }
         .settingsForm(current.title)
+        .onAppear { loadCredential() }
         .confirmationDialog(L10n.text("Remove"), isPresented: $confirmsRemoval) {
             Button(L10n.text("Remove"), role: .destructive) { store.removeSubscription(current); dismiss() }
         }
@@ -1504,6 +1546,19 @@ struct SubscriptionDetailView: View {
             }
             changing = false
         }
+    }
+
+    private func loadCredential() {
+        guard let url = URL(string: entry.address),
+              let saved = SubscriptionCredentials.shared.credential(for: url) else { return }
+        credentialUsername = saved.username; credentialPassword = saved.password
+    }
+
+    private func saveCredential() {
+        guard let url = URL(string: entry.address) else { return }
+        store.saveSubscriptionCredential(SubscriptionCredential(username: credentialUsername.trimmingCharacters(in: .whitespacesAndNewlines), password: credentialPassword), for: url)
+        credentialSaved = true
+        Task { await store.refreshSubscriptions() }
     }
 }
 

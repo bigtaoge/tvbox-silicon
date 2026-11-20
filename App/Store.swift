@@ -34,6 +34,10 @@ import TVCore
     var subscriptionAddress: String
     /// What to call the subscription being added; empty shows where it lives instead.
     var subscriptionName = ""
+    /// The user name typed in to add a subscription that needs a sign-in; `dav` for Xiaoya.
+    var subscriptionUsername = "dav"
+    /// The password typed with it. Kept in memory only here; a saved one lives in the Keychain.
+    var subscriptionPassword = ""
     /// Every subscription the viewer added, in the order they merge.
     var subscriptions: [SubscriptionEntry] = []
     /// Why a subscription last failed to refresh, by address; its last good copy stays in use.
@@ -371,6 +375,19 @@ import TVCore
         defer { importing = false }
         await fetch(missing)
     }
+    /// The sign-in for an address: what was just typed in the add form, else what the Keychain
+    /// kept for its host. The typed one wins, so re-adding with a new password replaces the old.
+    func subscriptionCredential(for url: URL, typed: SubscriptionCredential? = nil) -> SubscriptionCredential? {
+        if let typed { return typed }
+        return SubscriptionCredentials.shared.credential(for: url)
+    }
+
+    /// Keeps a subscription's sign-in in the Keychain (nil clears it); the password never goes
+    /// into the subscription list in UserDefaults.
+    func saveSubscriptionCredential(_ credential: SubscriptionCredential?, for url: URL) {
+        SubscriptionCredentials.shared.save(credential, for: url)
+    }
+
     /// Adds the typed address, or refreshes it when it is already in the list. A directory (多仓)
     /// adds every subscription it lists, switched off, for the viewer to choose from.
     /// `address` is one typed in Settings, or one a link or a file handed over; `name` labels it the way a
@@ -384,7 +401,12 @@ import TVCore
         if let link = URL(string: typed), let inner = NovelSources.importAddress(link) { typed = inner.absoluteString }
         do {
             let url = try WebAddress.resolve(typed: typed)
-            switch try await http.subscriptionImport(url) {
+            let typedCredential: SubscriptionCredential? = {
+                let username = subscriptionUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+                return username.isEmpty || subscriptionPassword.isEmpty ? nil : SubscriptionCredential(username: username, password: subscriptionPassword)
+            }()
+            let credential = subscriptionCredential(for: url, typed: typedCredential)
+            switch try await http.subscriptionImport(url, credential: credential) {
             case .subscription(let value):
                 let title = (address == nil ? subscriptionName : (name ?? "")).trimmingCharacters(in: .whitespacesAndNewlines)
                 let entry = SubscriptionEntry(address: url.absoluteString, name: title)
@@ -393,6 +415,7 @@ import TVCore
                     if !title.isEmpty { subscriptions[index].name = title }
                 } else { subscriptions.append(entry) }
                 keep(value, for: entry)
+                if let credential { saveSubscriptionCredential(credential, for: url) }
                 if persistsChanges { defaults.set(url.absoluteString, forKey: "subscriptionAddress") }
                 notice = L10n.text("Imported sources: %lld · Live playlists: %lld", value.sites.count, value.lives.count)
             case .directory(let entries):
@@ -425,12 +448,16 @@ import TVCore
                 notice = saved.count == 1 ? L10n.text("Added the AList server %@. Browse it in Cloud Files.", saved[0].name)
                     : L10n.text("Added %lld AList servers. Browse them in Cloud Files.", saved.count)
             }
-            if address == nil { subscriptionAddress = ""; subscriptionName = "" }
+            if address == nil { subscriptionAddress = ""; subscriptionName = ""; subscriptionPassword = "" }
             saveSubscriptionList()
             rebuildSubscription()
         } catch {
             Diagnostics.shared.failure("subscription", "import host=\((try? WebAddress.resolve(typed: typed))?.host() ?? "-")", error)
-            importError = L10n.text("Import failed: %@", error.localizedDescription)
+            if let tvError = error as? TVError, case .http(401) = tvError {
+                importError = L10n.text("This subscription needs a sign-in (HTTP 401). Enter the user name and password, then add it again.")
+            } else {
+                importError = L10n.text("Import failed: %@", error.localizedDescription)
+            }
         }
     }
     /// Adds a subscription, or one spider script, from a file the viewer picked. The file is copied
@@ -489,7 +516,7 @@ import TVCore
             guard !subscriptions.contains(where: { $0.address == url.absoluteString }) else {
                 return L10n.text("Another subscription already uses this address.")
             }
-            guard case .subscription(let fetched) = try await http.subscriptionImport(url) else {
+            guard case .subscription(let fetched) = try await http.subscriptionImport(url, credential: SubscriptionCredentials.shared.credential(for: url)) else {
                 return L10n.text("This address doesn't hold a subscription. Add it as a new one instead.")
             }
             value = fetched
@@ -535,6 +562,7 @@ import TVCore
         subscriptions.removeAll { addresses.contains($0.address) }
         for entry in removed {
             documents[entry.address] = nil; subscriptionErrors[entry.address] = nil
+            if let url = URL(string: entry.address) { SubscriptionCredentials.shared.save(nil, for: url) }
             if persistsChanges { try? FileManager.default.removeItem(at: Self.file(for: entry)); ImportedFiles.remove(entry.address) }
         }
         saveSubscriptionList()
@@ -587,8 +615,10 @@ import TVCore
         let results = await withTaskGroup(of: (SubscriptionEntry, Result<SubscriptionImport, any Error>).self) { group in
             for entry in entries {
                 group.addTask {
-                    do { return (entry, .success(try await http.subscriptionImport(WebAddress.resolve(entry.address)))) }
-                    catch { return (entry, .failure(error)) }
+                    do {
+                        let address = try WebAddress.resolve(entry.address)
+                        return (entry, .success(try await http.subscriptionImport(address, credential: SubscriptionCredentials.shared.credential(for: address))))
+                    } catch { return (entry, .failure(error)) }
                 }
             }
             var all: [(SubscriptionEntry, Result<SubscriptionImport, any Error>)] = []
@@ -614,7 +644,11 @@ import TVCore
                 subscriptionErrors[entry.address] = L10n.text("This address is now an LX Music source. Add it again to play music through it.")
             case .failure(let error):
                 Diagnostics.shared.failure("subscription", "refresh host=\(URL(string: entry.address)?.host() ?? "-")", error)
-                subscriptionErrors[entry.address] = error.localizedDescription
+                if let tvError = error as? TVError, case .http(401) = tvError {
+                    subscriptionErrors[entry.address] = L10n.text("This subscription needs a sign-in. Open it and enter the user name and password.")
+                } else {
+                    subscriptionErrors[entry.address] = error.localizedDescription
+                }
             }
         }
         saveSubscriptionList()

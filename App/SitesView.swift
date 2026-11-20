@@ -1316,7 +1316,7 @@ struct SiteView: View {
                         }
                         if browser.videos.isEmpty && browser.loaded && !browser.busy && browser.error == nil { EmptyResults(symbol: "film", title: L10n.text("No Videos"), message: L10n.text("Try selecting a category or searching.")) }
                         let landscape = showsBilibiliTiles
-                        LazyVGrid(columns: landscape ? Self.bilibiliColumns : Layout.posterColumns, spacing: Layout.gridRowSpacing) {
+                        LazyVGrid(columns: landscape ? Self.bilibiliColumns : Layout.verticalPosterColumns, spacing: Layout.gridRowSpacing) {
                             ForEach(browser.videos) { video in
                                 Group {
                                     // An index source (a ranking or list site) names titles; other sources play them.
