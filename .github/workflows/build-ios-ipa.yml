@@ -187,6 +187,19 @@ jobs:
       - name: Build libass
         run: Scripts/build-apple-libass.sh
 
+      # These two are Mac-only resources, but xcodegen validates ALL
+      # targets (including TVBox-macOS, which lists build/ScriptHost
+      # and build/PythonHost as source dirs in project.yml), so they
+      # must exist before "xcodegen generate" or it fails with
+      # "Target TVBox-macOS has a missing source directory"
+      # (failed run, 2026-11-20). The iOS archive itself does not
+      # use them.
+      - name: Build script host (for xcodegen validation)
+        run: Scripts/build-script-host.sh
+
+      - name: Build Python host (for xcodegen validation)
+        run: Scripts/build-python-host.sh
+
       - name: Generate Xcode project
         run: xcodegen generate
 
