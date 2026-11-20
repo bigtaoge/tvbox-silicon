@@ -108,12 +108,17 @@ jobs:
       # xcodegen: generates TVBox.xcodeproj from project.yml
       # maven: build-java-host.sh needs mvn on PATH
       # python@3.14: build-apple-python.sh requires python3.14
+      # autoconf (+ automake): the embedded-JVM step runs OpenJDK's
+      # configure, which needs autoconf to generate its runnable
+      # configure script. Without it that step fails with
+      # "Error: Cannot find autoconf" (first run, 2026-11-20).
       - name: Install build tools (Homebrew)
         run: |
-          brew install xcodegen maven python@3.14
+          brew install xcodegen maven python@3.14 autoconf automake
           xcodegen --version
           mvn -version
           python3.14 --version
+          autoconf --version | head -1
           echo "$(brew --prefix python@3.14)/bin" >> "$GITHUB_PATH"
 
       # ---- Caches: the first run is slow mainly because of these ----
