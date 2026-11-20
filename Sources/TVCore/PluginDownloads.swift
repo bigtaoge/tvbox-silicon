@@ -144,6 +144,14 @@ actor PluginDownloads {
         let (data, response) = try await http.mirrors.fetch(url, timeout: 25) { [http] address, timeout in
             var request = URLRequest(url: address, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
             request.setValue(HTTPClient.userAgent, forHTTPHeaderField: "User-Agent")
+            // A subscription host that needs a sign-in (Xiaoya's forced login) answers its jar
+            // with 401 too. Only send the credential to the subscription's own host, never to
+            // a mirror: mirrors.fetch only rewrites GitHub addresses, so this is normally the
+            // same host, but check anyway.
+            if address.host()?.lowercased() == url.host()?.lowercased(),
+               let authorization = SubscriptionCredentials.shared.authorizationHeader(for: url) {
+                request.setValue(authorization, forHTTPHeaderField: "Authorization")
+            }
             if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
             if let modified { request.setValue(modified, forHTTPHeaderField: "If-Modified-Since") }
             let transfer = PluginTransfer(configuration: http.session.configuration) { received, total in

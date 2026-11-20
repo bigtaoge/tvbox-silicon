@@ -22,7 +22,7 @@ extension Site {
 extension Subscription {
     /// Downloads each source `Site.needsSniffing` names and records what it turned out to be.
     /// One that fails to download or isn't recognized stays a JAR class, as TVBox reads it.
-    func sniffingScripts(http: HTTPClient) async -> Subscription {
+    func sniffingScripts(http: HTTPClient, credential: SubscriptionCredential? = nil) async -> Subscription {
         let pending = sites.indices.filter { sites[$0].needsSniffing }
         guard !pending.isEmpty else { return self }
         var sites = sites
@@ -31,7 +31,7 @@ extension Subscription {
                 let site = sites[index], origin = origin
                 group.addTask {
                     guard let url = try? site.scriptURL(origin: origin),
-                          let (data, _) = try? await http.get(url) else { return (index, nil) }
+                          let (data, _) = try? await http.get(url, headers: credential?.headers ?? [:]) else { return (index, nil) }
                     return (index, Site.sniffedRuntime(data))
                 }
             }

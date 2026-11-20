@@ -173,9 +173,10 @@ extension Subscription {
 }
 
 extension HTTPClient {
-    public func subscriptionImport(_ address: URL) async throws -> SubscriptionImport {
+    public func subscriptionImport(_ address: URL, credential: SubscriptionCredential? = nil) async throws -> SubscriptionImport {
+        if let credential { SubscriptionCredentials.shared.remember(credential, for: address) }
         let (url, headers) = Subscription.headerSuffix(address)
-        let (data, finalURL) = try await get(url, headers: ["User-Agent": Self.subscriptionUserAgent].merging(headers) { $1 },
+        let (data, finalURL) = try await get(url, headers: ["User-Agent": Self.subscriptionUserAgent].merging(headers) { $1 }.merging(credential?.headers ?? [:]) { $1 },
                                              limit: Self.subscriptionLimit)
         if let bundle = CatPawOpen.bundle(data, at: finalURL) { return .subscription(try await CatPawOpen.subscription(bundle: bundle, origin: finalURL, http: self)) }
         if let count = MangaSources.listedCount(data) { return .comicSources(count) }
@@ -185,7 +186,7 @@ extension HTTPClient {
         if let entries = Subscription.directory(data, origin: finalURL) { return .directory(entries) }
         let offers = NovelSourceIndex.offers(inPage: data, origin: finalURL)
         if !offers.isEmpty { return .novelIndex(offers) }
-        do { return .subscription(try await Subscription.parse(data, origin: finalURL, headers: headers).sniffingScripts(http: self)) }
+        do { return .subscription(try await Subscription.parse(data, origin: finalURL, headers: headers).sniffingScripts(http: self, credential: credential)) }
         catch {
             // An LX Music source isn't a subscription, but people add one here to play music (#1177).
             if let script = LXSourceLibrary.script(in: data) { return .lxMusicSource(script) }
