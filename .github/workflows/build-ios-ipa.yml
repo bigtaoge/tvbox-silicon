@@ -72,10 +72,11 @@ concurrency:
 jobs:
   build-ipa:
     name: Build TVBox-iOS (unsigned)
-    # macOS runner is required for Xcode. If macos-15 is not
-    # available on your account, try macos-latest instead.
-    # Never switch this to ubuntu/windows.
-    runs-on: macos-15
+    # macOS runner is required for Xcode. macos-15 was repeatedly
+    # unavailable ("job was not acquired", 2026-11-20), so fall back
+    # to macos-latest to use a different runner pool. If the build
+    # then fails on Xcode version, revert to macos-15 and retry later.
+    runs-on: macos-latest
     # 360 is the maximum for a GitHub-hosted runner job.
     timeout-minutes: 360
     env:
