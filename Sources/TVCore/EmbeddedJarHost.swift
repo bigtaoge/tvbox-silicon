@@ -128,9 +128,12 @@ public actor EmbeddedJarHost {
         if let credential = SubscriptionCredentials.shared.credential(for: configurationOrigin),
            let header = credential.authorizationHeader,
            let host = configurationOrigin.host,
-           let authData = try? JSONEncoder().encode(["host": host, "authorization": header]),
-           let authText = String(data: authData, encoding: .utf8) {
-            input["subscriptionAuth"] = .string(authText)
+           let authData = try? JSONEncoder().encode(["host": host, "authorization": header]) {
+            // Send the sign-in as a JSON object, not as an encoded string: the JVM
+            // reads it with optJSONObject, which returns null for a string value,
+            // so every login fix (ext injection, .login seeding, HTTP header)
+            // silently did nothing while this was a string.
+            input["subscriptionAuth"] = .object(["host": .string(host), "authorization": .string(header)])
             authDigest = String(PluginChecksum.sha256(authData).prefix(12))
         }
         // Saved Quark/UC sign-ins; the spider reads them when it is created.

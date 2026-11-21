@@ -102,10 +102,10 @@ public actor LocalJarHost {
                     // HTTP client needs it for the subscription host (see SubscriptionAuth).
                     if let origin = configurationOrigin,
                        let credential = SubscriptionCredentials.shared.credential(for: origin),
-                       let header = credential.authorizationHeader, let host = origin.host,
-                       let authData = try? JSONEncoder().encode(["host": host, "authorization": header]),
-                       let authText = String(data: authData, encoding: .utf8) {
-                        input["subscriptionAuth"] = authText
+                       let header = credential.authorizationHeader, let host = origin.host {
+                        // Same object shape as EmbeddedJarHost: the JVM reads this
+                        // with optJSONObject, which returns null for a string value.
+                        input["subscriptionAuth"] = ["host": host, "authorization": header]
                     }
                     let request = job.appendingPathComponent("request.json")
                     try JSONSerialization.data(withJSONObject: input).write(to: request)
