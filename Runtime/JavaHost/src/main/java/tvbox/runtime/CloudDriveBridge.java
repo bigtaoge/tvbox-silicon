@@ -518,6 +518,83 @@ public final class CloudDriveBridge implements AutoCloseable {
         drive.put("login", new JSONObject().put("username", username).put("password", password));
         return true;
     }
+
+    /**
+     * Second login path for the AList spider (csp_AListSh, xiaoya_proxy.jar), next to
+     * the ext {@code drives[].login} fill-in above. Decompiled from the jar, the spider
+     * logs in in order (n) a drive's ext {@code login}, (o) a {@code .login} file under
+     * the context's files dir, (p) an Android login dialog that needs an Activity and
+     * can never work on iOS. The file's name is the drive server with {@code "://"}
+     * and {@code ":"} replaced by {@code "_"} plus {@code ".login"} (e.g.
+     * {@code "http://10.0.0.139:5678/} → {@code http_10.0.0.139_5678.login}); its
+     * content is exactly {@code "username\npassword"}. On 401/403 the spider retries
+     * (n) then (o) then (p), and if login still fails it overwrites the file with
+     * {@code "\n\n"} — so a stale or emptied file is rewritten by the next session's
+     * seed. The file is written only when missing or different (the spider's own
+     * writer does the same), and a failed seed never breaks the session. No
+     * credentials are ever logged.
+     */
+    public static void seedSubscriptionLogin(Path filesDir, String extJson) {
+        if (filesDir == null || extJson == null || extJson.isBlank()) return;
+        String trimmed = extJson.trim();
+        try {
+            if (trimmed.startsWith("[")) {
+                JSONArray ext = new JSONArray(extJson);
+                for (int i = 0; i < ext.length(); i++) {
+                    JSONObject element = ext.optJSONObject(i);
+                    if (element == null) continue;
+                    if (element.has("drives")) { seedDriveLogins(filesDir, element.optJSONArray("drives")); continue; }
+                    seedDriveLogin(filesDir, element);
+                }
+                return;
+            }
+            if (!trimmed.startsWith("{")) return;
+            JSONObject ext = new JSONObject(extJson);
+            JSONArray drives = ext.optJSONArray("drives");
+            if (drives != null) { seedDriveLogins(filesDir, drives); return; }
+            seedDriveLogin(filesDir, ext);
+        } catch (JSONException unreadable) {
+            System.err.println("SUBSCRIPTION_LOGIN_SEED_FAILED unreadable ext");
+        }
+    }
+
+    /** Writes the .login file for every drive in the array that has a saved sign-in. */
+    private static void seedDriveLogins(Path filesDir, JSONArray drives) {
+        if (drives == null) return;
+        for (int i = 0; i < drives.length(); i++) {
+            JSONObject drive = drives.optJSONObject(i);
+            if (drive != null) seedDriveLogin(filesDir, drive);
+        }
+    }
+
+    /** Writes one drive's .login file ("username\npassword") when a sign-in is saved for its host. */
+    private static void seedDriveLogin(Path filesDir, JSONObject drive) {
+        String server = drive.optString("server", "");
+        String host = SubscriptionAuth.hostOf(server);
+        if (host == null) return;
+        String username = SubscriptionAuth.usernameFor(host), password = SubscriptionAuth.passwordFor(host);
+        if (username == null || password == null) return;
+        String name = loginFileName(server);
+        if (name == null) return;
+        Path file = filesDir.resolve(name);
+        String content = username + "\n" + password;
+        try {
+            String saved = Files.isRegularFile(file) ? Files.readString(file, StandardCharsets.UTF_8) : null;
+            if (content.equals(saved)) return;
+            Files.createDirectories(filesDir);
+            Files.writeString(file, content, StandardCharsets.UTF_8);
+        } catch (IOException unwritable) {
+            System.err.println("SUBSCRIPTION_LOGIN_SEED_FAILED " + name);
+        }
+    }
+
+    /** The spider's .login filename for a drive server: trailing "/" stripped, "://" and ":" become "_", plus ".login". */
+    private static String loginFileName(String server) {
+        String stripped = server.trim();
+        while (stripped.endsWith("/")) stripped = stripped.substring(0, stripped.length() - 1);
+        if (stripped.isEmpty()) return null;
+        return stripped.replace("://", "_").replace(":", "_") + ".login";
+    }
     /**
      * Pan spiders of the csp_Config family read raw drive cookies from {@code files/.quark}, {@code .uc}
      * and {@code .baidu}. Their config center fills these from a phone through a LAN QR code this host

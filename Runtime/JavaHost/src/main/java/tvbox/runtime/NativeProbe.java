@@ -311,6 +311,11 @@ public class NativeProbe extends AbstractJni {
         String api = input.getString("api");
         if (!api.startsWith("csp_")) throw new IllegalArgumentException("Expected a csp_ plugin class");
         CloudDriveBridge.seedDriveCookies(accounts, context.getFilesDir().toPath());
+        // Second login path for the AList spider: seed its .login file from the saved
+        // subscription sign-in, before the spider starts (the spider reads the file
+        // when the ext login is missing or fails; its Android login dialog cannot run
+        // on iOS). The ext here is the already-injected one from initialize()/openSource.
+        CloudDriveBridge.seedSubscriptionLogin(context.getFilesDir().toPath(), input.optString("ext"));
         CloudDriveBridge.seedWexCookies(accounts, context);
         CloudDriveBridge.seedFongMiPanCookies(accounts, context);
         CloudDriveBridge.useWexJavaThreads(context);
