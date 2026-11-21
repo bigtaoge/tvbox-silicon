@@ -26,7 +26,10 @@ import TVCore
         /// The App Store updates its own builds.
         case none
     }
-    static var channel: Channel { Distribution.isTestFlight ? .testFlight : Distribution.isAppStore ? .none : .direct }
+    // Fork build: never prompt for the author's releases. The App Store channel
+    // (.none) performs no feed check and hides the update rows in Settings, so a
+    // newer official version can never offer to replace this build.
+    static var channel: Channel { .none }
 
     /// The version this build carries, e.g. "1.0.1".
     let current: String
