@@ -425,6 +425,41 @@ public final class CloudDriveBridge implements AutoCloseable {
         }
         return ext.toString();
     }
+
+    /**
+     * The AList spider does not use HTTP Basic Auth: it signs in to Alist itself with
+     * {@code POST /api/auth/login} using each drive's {@code login: {username, password}}
+     * from the site's ext, then calls {@code /api/fs/list} with the token. A Xiaoya ext
+     * carries no login (its drives are just {@code {name, server, version}}), so with
+     * forced login on the spider runs as a guest and Alist answers 403. Fill in the
+     * subscription sign-in (the app saved it for the subscription host, e.g. Xiaoya's
+     * {@code guest} account) for every drive on that host that has no login of its own.
+     * A drive that already carries a login is left alone. The password is only placed
+     * in the ext the spider receives, never logged.
+     */
+    public String injectSubscriptionLogin(String original, JSONObject auth) {
+        if (auth == null || original == null || !original.trim().startsWith("{")) return original;
+        String host = auth.optString("host", "").trim().toLowerCase();
+        String username = SubscriptionAuth.usernameFor(host), password = SubscriptionAuth.passwordFor(host);
+        if (host.isEmpty() || username == null || password == null) return original;
+        try {
+            JSONObject ext = new JSONObject(original);
+            JSONArray drives = ext.optJSONArray("drives");
+            if (drives == null) return original;
+            boolean changed = false;
+            for (int i = 0; i < drives.length(); i++) {
+                JSONObject drive = drives.optJSONObject(i);
+                if (drive == null || !host.equals(SubscriptionAuth.hostOf(drive.optString("server", "")))) continue;
+                JSONObject login = drive.optJSONObject("login");
+                if (login != null && !login.optString("username", "").isBlank() && !login.optString("password", "").isBlank()) continue;
+                drive.put("login", new JSONObject().put("username", username).put("password", password));
+                changed = true;
+            }
+            return changed ? ext.toString() : original;
+        } catch (JSONException unreadable) {
+            return original;
+        }
+    }
     /**
      * Pan spiders of the csp_Config family read raw drive cookies from {@code files/.quark}, {@code .uc}
      * and {@code .baidu}. Their config center fills these from a phone through a LAN QR code this host

@@ -194,6 +194,12 @@ public class NativeProbe extends AbstractJni {
             if (java.nio.file.Files.isRegularFile(accountPath)) accounts = new org.json.JSONObject(java.nio.file.Files.readString(accountPath));
         }
         input.put("ext", bridge.extension(input.optString("ext"), accounts));
+        // The subscription host's sign-in for the JVM: register it for the spider's HTTP
+        // client, and fill the AList spider's drives[].login with it (see SubscriptionAuth).
+        if (input.has("subscriptionAuth")) {
+            SubscriptionAuth.set(input.optJSONObject("subscriptionAuth"));
+            input.put("ext", bridge.injectSubscriptionLogin(input.optString("ext"), input.optJSONObject("subscriptionAuth")));
+        }
         File jar = new File(input.getString("jar"));
         HostEnvironment.plugin = jar.getAbsolutePath();
         var guards = NativeLibraries.prepareGuards(jar, session.toPath());

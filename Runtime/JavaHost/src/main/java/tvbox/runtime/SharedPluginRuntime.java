@@ -131,6 +131,12 @@ public final class SharedPluginRuntime {
                 if (Files.isRegularFile(accountPath)) accounts = new JSONObject(Files.readString(accountPath));
             }
             input.put("ext", bridge.extension(input.optString("ext"), accounts));
+            // The subscription host's sign-in for the JVM: register it for the spider's
+            // HTTP client, and fill the AList spider's drives[].login with it.
+            if (input.has("subscriptionAuth")) {
+                SubscriptionAuth.set(input.optJSONObject("subscriptionAuth"));
+                input.put("ext", bridge.injectSubscriptionLogin(input.optString("ext"), input.optJSONObject("subscriptionAuth")));
+            }
             long start = System.nanoTime();
             var session = NativeProbe.createStandardSession(runtime, input, bridge, accounts);
             System.err.printf("PLUGIN_SOURCE_READY %s %.3fs %s%n", input.optString("key"), (System.nanoTime() - start) / 1e9, HeapBudget.describe());
