@@ -34,7 +34,8 @@ import TVCore
     var subscriptionAddress: String
     /// What to call the subscription being added; empty shows where it lives instead.
     var subscriptionName = ""
-    /// The user name typed in to add a subscription that needs a sign-in; `dav` for Xiaoya.
+    /// The user name typed in to add a subscription that needs a sign-in; `dav` for Xiaoya
+    /// The forced-login user is `dav` (from /etc/xiaoya/guestpass.txt).
     var subscriptionUsername = "dav"
     /// The password typed with it. Kept in memory only here; a saved one lives in the Keychain.
     var subscriptionPassword = ""
@@ -453,8 +454,9 @@ import TVCore
             rebuildSubscription()
         } catch {
             Diagnostics.shared.failure("subscription", "import host=\((try? WebAddress.resolve(typed: typed))?.host() ?? "-")", error)
-            if let tvError = error as? TVError, case .http(401) = tvError {
-                importError = L10n.text("This subscription needs a sign-in (HTTP 401). Enter the user name and password, then add it again.")
+            // AList with forced login on answers an unsigned request with 403 as well as 401.
+            if let tvError = error as? TVError, case .http(let code) = tvError, code == 401 || code == 403 {
+                importError = L10n.text("This subscription needs a sign-in (HTTP %lld). Enter the user name and password, then add it again.", code)
             } else {
                 importError = L10n.text("Import failed: %@", error.localizedDescription)
             }
@@ -644,7 +646,8 @@ import TVCore
                 subscriptionErrors[entry.address] = L10n.text("This address is now an LX Music source. Add it again to play music through it.")
             case .failure(let error):
                 Diagnostics.shared.failure("subscription", "refresh host=\(URL(string: entry.address)?.host() ?? "-")", error)
-                if let tvError = error as? TVError, case .http(401) = tvError {
+                // AList with forced login on answers an unsigned request with 403 as well as 401.
+                if let tvError = error as? TVError, case .http(let code) = tvError, code == 401 || code == 403 {
                     subscriptionErrors[entry.address] = L10n.text("This subscription needs a sign-in. Open it and enter the user name and password.")
                 } else {
                     subscriptionErrors[entry.address] = error.localizedDescription

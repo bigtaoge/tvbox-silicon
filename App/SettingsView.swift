@@ -1551,6 +1551,10 @@ struct SubscriptionDetailView: View {
     }
 
     private func loadCredential() {
+        // No saved sign-in yet: prefill the Xiaoya user name so only the password is left
+        // to type. (An import that needed no sign-in for the JSON itself saves nothing,
+        // which is why the password field used to look empty here.)
+        credentialUsername = "dav"
         guard let url = URL(string: entry.address),
               let saved = SubscriptionCredentials.shared.credential(for: url) else { return }
         credentialUsername = saved.username; credentialPassword = saved.password
