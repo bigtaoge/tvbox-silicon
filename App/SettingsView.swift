@@ -1502,7 +1502,7 @@ struct SubscriptionDetailView: View {
             Section {
                 Button(L10n.text("Remove"), role: .destructive) { confirmsRemoval = true }
             }
-            Section(L10n.text("Sign-in")) {
+            Section {
                 TextField(L10n.text("User name"), text: $credentialUsername, prompt: Text(L10n.text("dav")))
                     .labelsHidden()
                     .autocorrectionDisabled()
@@ -1516,6 +1516,8 @@ struct SubscriptionDetailView: View {
                     Spacer()
                     if credentialSaved { Text(L10n.text("Saved")).foregroundStyle(.secondary) }
                 }
+            } header: {
+                Text(L10n.text("Sign-in"))
             } footer: {
                 Text(L10n.text("Only if this subscription needs a sign-in, such as Xiaoya with forced login on (user name dav). The password is kept in the Keychain. Saving refreshes the subscription."))
             }
