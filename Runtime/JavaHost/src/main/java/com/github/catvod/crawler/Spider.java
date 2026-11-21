@@ -15,6 +15,15 @@ public abstract class Spider {
     private static final OkHttpClient HTTP = new OkHttpClient.Builder()
         .addInterceptor(chain -> {
             var request = chain.request();
+            // A subscription host that needs a sign-in (Xiaoya/Alist with forced login on)
+            // answers the spider's own requests with 403 when they carry no login. The
+            // app saved that sign-in for the subscription host; add it here, exact host
+            // only, and only when the spider did not already set Authorization itself.
+            // (Net's client is built from this one, so this also covers the new SDK.)
+            if (request.header("Authorization") == null) {
+                String header = tvbox.runtime.SubscriptionAuth.headerFor(request.url().host());
+                if (header != null) request = request.newBuilder().header("Authorization", header).build();
+            }
             System.err.println("HTTP " + request.url().scheme() + "://" + request.url().host() + request.url().encodedPath());
             try {
                 var response = chain.proceed(request);
