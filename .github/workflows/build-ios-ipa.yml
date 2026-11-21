@@ -72,10 +72,11 @@ concurrency:
 jobs:
   build-ipa:
     name: Build TVBox-iOS (unsigned)
-    # macOS runner is required for Xcode. macos-15 was repeatedly
-    # unavailable ("job was not acquired", 2026-11-20), so fall back
-    # to macos-latest to use a different runner pool. If the build
-    # then fails on Xcode version, revert to macos-15 and retry later.
+    # macOS runner is required for Xcode. Use macos-latest
+    # (Xcode 26.6, iOS 26.5 SDK) — the user wants the new version,
+    # and upstream code has been patched for it in
+    # xcode26-compat.patch (see README there). Do NOT switch back
+    # to macos-15: that only hides the incompatibility.
     runs-on: macos-latest
     # 360 is the maximum for a GitHub-hosted runner job.
     timeout-minutes: 360
