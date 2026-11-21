@@ -398,7 +398,17 @@ struct LiveSearchResults: View {
             guard !Task.isCancelled else { return }
             await withTaskGroup(of: (LivePlatform, Result<[LiveRoom], Error>).self) { group in
                 for platform in platforms {
-                    group.addTask { await (platform, Result { try await LiveCatalog.search(platform, keyword: query) }) }
+                    // No `Result { try await ... }`: Result's throwing init takes a
+                    // synchronous closure, so an async throwing call cannot be passed
+                    // to it. Do the try/catch explicitly instead.
+                    group.addTask {
+                        do {
+                            let rooms = try await LiveCatalog.search(platform, keyword: query)
+                            return (platform, Result<[LiveRoom], Error>.success(rooms))
+                        } catch {
+                            return (platform, Result<[LiveRoom], Error>.failure(error))
+                        }
+                    }
                 }
                 for await (platform, result) in group where !Task.isCancelled {
                     switch result {

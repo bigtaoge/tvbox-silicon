@@ -13,6 +13,14 @@ struct WatchNowPhonePage: View {
     /// Scrolled past the hero: the bar is over the app's own background again.
     @State private var pastHero = false
 
+    /// Explicit init: the private @State properties above make the synthesized
+    /// memberwise init private under Swift 6, so call sites in HomeView could
+    /// not use it. @State properties keep their default values here.
+    init(config: Subscription, sections: Set<HomeSection>) {
+        self.config = config
+        self.sections = sections
+    }
+
     /// The newest titles not finished yet, for the hero.
     private var upNext: [PlaybackHistoryEntry] {
         guard sections.contains(.upNext) else { return [] }

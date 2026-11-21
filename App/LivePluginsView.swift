@@ -181,6 +181,15 @@ struct LivePluginOfferSection: View {
     /// Icons of the plugins not installed yet, read from their ZIPs.
     @State private var previews: [String: URL] = [:]
 
+    /// Explicit init: the private @State properties above make the synthesized
+    /// memberwise init private under Swift 6, so call sites could not use it.
+    /// @State properties keep their default values here.
+    init(title: String, address: URL, entries: [LivePlugins.Entry]) {
+        self.title = title
+        self.address = address
+        self.entries = entries
+    }
+
     var body: some View {
         content
             #if !os(tvOS)
@@ -243,15 +252,21 @@ struct LivePluginOfferSection: View {
 
     private func loadPreviews() async {
         let wanted = entries.filter { installedIcon($0) == nil && previews[$0.pluginId] == nil }
+        // Capture the binding, not self: mutating @State storage through the
+        // task group's @Sendable closure is rejected (immutable self), while
+        // a Binding's wrappedValue setter is non-mutating.
+        let previewsBinding = $previews
         await withTaskGroup(of: (String, URL?).self) { group in
             for entry in wanted { group.addTask { (entry.pluginId, await LivePlugins.shared.previewIcon(entry)) } }
-            for await (id, file) in group { if let file { previews[id] = file } }
+            for await (id, file) in group { if let file { previewsBinding.wrappedValue[id] = file } }
         }
     }
 
-    private enum State { case available, update, installed }
+    /// Renamed from `State`: a nested type named State shadows SwiftUI's @State
+    /// attribute for the whole struct under Swift 6.
+    private enum PluginState { case available, update, installed }
 
-    private func state(_ entry: LivePlugins.Entry) -> State {
+    private func state(_ entry: LivePlugins.Entry) -> PluginState {
         guard let current = LivePlugins.shared.installed(entry.pluginId) else { return .available }
         return current.version == entry.version && (entry.sha256.isEmpty || entry.sha256 == current.sha256) ? .installed : .update
     }
@@ -268,13 +283,20 @@ struct LivePluginOfferSection: View {
         let list = list.filter { !busy.contains($0.pluginId) }
         guard !list.isEmpty else { return }
         list.forEach { busy.insert($0.pluginId); failures[$0.pluginId] = nil }
+        // Capture the bindings, not self: inside the Task's @Sendable closure
+        // self is immutable, so mutating methods on the @State values
+        // (Set.remove, dictionary subscript, +=) are rejected there, while a
+        // Binding's wrappedValue setter is non-mutating.
+        let busyBinding = $busy
+        let failuresBinding = $failures
+        let revisionBinding = $revision
         Task {
             // One after another: a failure leaves the rest to install.
             for entry in list {
                 do { try await LivePlugins.shared.install(entry, from: address) }
-                catch { failures[entry.pluginId] = error.localizedDescription }
-                busy.remove(entry.pluginId)
-                revision += 1
+                catch { failuresBinding.wrappedValue[entry.pluginId] = error.localizedDescription }
+                busyBinding.wrappedValue.remove(entry.pluginId)
+                revisionBinding.wrappedValue += 1
             }
         }
     }

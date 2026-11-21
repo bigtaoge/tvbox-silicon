@@ -988,15 +988,10 @@ private final class EnhancementPipeline: EnhancementEngine, @unchecked Sendable 
     }
 
     /// The SDK marks the size query 27.0, but iOS 27.0 lacks its Swift wrappers: calling them jumped to address 0
-    /// (crash report e8d4f2a2b133). The Objective-C methods are asked for by selector instead, once; 0 means unsupported.
-    private static let interpolationLimit: (side: Int, pixels: Int)? = {
-        guard #available(macOS 27, iOS 27, tvOS 27, *) else { return nil }
-        let type = VTLowLatencyFrameInterpolationConfiguration.self
-        guard type.responds(to: #selector(VTLowLatencyFrameInterpolationConfiguration.__maximumDimension(forSpatialScaleFactor:))),
-              type.responds(to: #selector(VTLowLatencyFrameInterpolationConfiguration.__maximumPixelCount(forSpatialScaleFactor:)))
-        else { return nil }
-        return (type.__maximumDimension(forSpatialScaleFactor: 1), type.__maximumPixelCount(forSpatialScaleFactor: 1))
-    }()
+    /// (crash report e8d4f2a2b133). The Objective-C methods were asked for by selector instead, once; 0 means unsupported.
+    /// SDK 26.5 has no such query at all — the #selector references do not even compile there — so there is
+    /// no limit to ask for: return nil and let `interpolationFits` fall back to its conservative 1280x720 limit.
+    private static let interpolationLimit: (side: Int, pixels: Int)? = nil
 
     private static func isHDR(_ buffer: CVPixelBuffer) -> Bool {
         let attachments = CVBufferCopyAttachments(buffer, .shouldPropagate) as? [String: Any]

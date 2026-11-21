@@ -21,9 +21,9 @@ import UIKit
 /// Shows the playing video on a connected display (HDMI, USB-C or AirPlay).
 ///
 /// The extra display gets one more `AVPlayerLayer` for the player the device is already using: no second
-/// stream is fetched, and the sound still comes from that one player only. From iOS 27 the system offers the
-/// external-display scene only to apps that register a scene accessory (`ExternalDisplaySceneRegistrar`);
-/// earlier systems offer it from the role this app declares in its `Info.plist` scene manifest.
+/// stream is fetched, and the sound still comes from that one player only. The system offers the
+/// external-display scene from the role this app declares in its `Info.plist` scene manifest.
+/// (An iOS 27 scene-accessory registrar used to live here; SDK 26.5 has no such API, so it was removed.)
 @MainActor final class ExternalDisplay {
     static let shared = ExternalDisplay()
 
@@ -51,8 +51,7 @@ import UIKit
         refresh()
     }
 
-    /// The player screen closed: the external window goes away. From iOS 27 the accessory is unregistered too
-    /// (`ExternalDisplayAccessoryController`), so the system takes the display back; on earlier systems the
+    /// The player screen closed: the external window goes away. On earlier systems the
     /// app keeps the display's scene and it shows black until the next video.
     func detach(_ player: AVPlayer) {
         guard self.player === player else { return }
@@ -120,42 +119,15 @@ private final class PlayerLayerDisplay: UIView {
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
 }
 
-/// A view in the player screen that registers the external-display accessory (iOS 27). The registration lives
-/// only while the player is on screen, so the system takes the display back once playback closes.
+/// A view in the player screen that used to register the external-display accessory (iOS 27).
+/// SDK 26.5 has no scene-accessory API, so this is now a plain empty view controller: the
+/// external display still works through the scene role in the `Info.plist` scene manifest.
 struct ExternalDisplaySceneRegistrar: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
-        if #available(iOS 27.0, *) { return ExternalDisplayAccessoryController() }
-        return UIViewController()
+        UIViewController()
     }
 
     func updateUIViewController(_ controller: UIViewController, context: Context) {}
-}
-
-@available(iOS 27.0, *)
-private final class ExternalDisplayAccessoryController: UIViewController {
-    private var registration: UISceneAccessoryRegistration?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        guard registration == nil else { return }
-        let configuration = UISceneConfiguration()
-        configuration.delegateClass = ExternalDisplaySceneDelegate.self
-        registration = registerSceneAccessory(UISceneAccessory.externalNonInteractive(sceneConfiguration: configuration))
-    }
-
-    /// Gives the display back as soon as the player leaves the screen, not whenever this controller is freed.
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        guard let registration else { return }
-        unregisterSceneAccessory(registration)
-        self.registration = nil
-    }
 }
 
 /// The external-display scene's delegate. Its window is made by `ExternalDisplay`, when a video is playing.
