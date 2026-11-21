@@ -478,7 +478,7 @@ public final class CloudDriveBridge implements AutoCloseable {
      * host gets a {@code login} object. Nested {@code drives} arrays inside an
      * element are filled too, so a mixed shape still works.
      */
-    private boolean fillArrayExt(JSONArray ext, String host, String username, String password) {
+    private boolean fillArrayExt(JSONArray ext, String host, String username, String password) throws JSONException {
         boolean changed = false;
         for (int i = 0; i < ext.length(); i++) {
             JSONObject element = ext.optJSONObject(i);
@@ -499,7 +499,7 @@ public final class CloudDriveBridge implements AutoCloseable {
     }
 
     /** Fills {@code login} on every drive in the array whose server is the subscription host. */
-    private boolean fillDrives(JSONArray drives, String host, String username, String password) {
+    private boolean fillDrives(JSONArray drives, String host, String username, String password) throws JSONException {
         boolean changed = false;
         if (drives == null) return false;
         for (int i = 0; i < drives.length(); i++) {
@@ -511,7 +511,7 @@ public final class CloudDriveBridge implements AutoCloseable {
     }
 
     /** Adds {@code login: {username, password}} to one drive on the subscription host, if it has none. */
-    private boolean fillDriveLogin(JSONObject drive, String host, String username, String password) {
+    private boolean fillDriveLogin(JSONObject drive, String host, String username, String password) throws JSONException {
         if (drive == null || !host.equals(SubscriptionAuth.hostOf(drive.optString("server", "")))) return false;
         JSONObject login = drive.optJSONObject("login");
         if (login != null && !login.optString("username", "").isBlank() && !login.optString("password", "").isBlank()) return false;
