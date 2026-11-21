@@ -430,35 +430,93 @@ public final class CloudDriveBridge implements AutoCloseable {
      * The AList spider does not use HTTP Basic Auth: it signs in to Alist itself with
      * {@code POST /api/auth/login} using each drive's {@code login: {username, password}}
      * from the site's ext, then calls {@code /api/fs/list} with the token. A Xiaoya ext
-     * carries no login (its drives are just {@code {name, server, version}}), so with
-     * forced login on the spider runs as a guest and Alist answers 403. Fill in the
-     * subscription sign-in (the app saved it for the subscription host, e.g. Xiaoya's
-     * {@code guest} account) for every drive on that host that has no login of its own.
-     * A drive that already carries a login is left alone. The password is only placed
-     * in the ext the spider receives, never logged.
+     * carries no login, so with forced login on the spider runs as a guest and Alist
+     * answers 403. Fill in the subscription sign-in (the app saved it for the
+     * subscription host, e.g. Xiaoya's {@code dav} account) for every drive on that
+     * host that has no login of its own. A drive that already carries a login is left
+     * alone. The password is only placed in the ext the spider receives, never logged.
+     *
+     * <p>Two ext shapes are handled, because the v1 fix only handled one and Xiaoya
+     * uses the other: (a) an object with a {@code drives} array, and (b) a bare JSON
+     * array, which is what Xiaoya's 小雅高清 (csp_AListSh) actually ships — its
+     * first element is a {@code {"type":"global", ...}} entry whose {@code "username"}
+     * is an empty string, followed by drive objects with just {@code name}, {@code
+     * server} and {@code startPage}. For the array shape the global entry's
+     * {@code username} (and {@code password}, which the FongMi AList contract reads
+     * from the global entry as the shared account) is filled in as well as each
+     * drive's {@code login}. A bare drive object ({@code {"server": ...}}) is
+     * handled the same way.
      */
     public String injectSubscriptionLogin(String original, JSONObject auth) {
-        if (auth == null || original == null || !original.trim().startsWith("{")) return original;
+        if (auth == null || original == null) return original;
         String host = auth.optString("host", "").trim().toLowerCase();
         String username = SubscriptionAuth.usernameFor(host), password = SubscriptionAuth.passwordFor(host);
         if (host.isEmpty() || username == null || password == null) return original;
+        String trimmed = original.trim();
         try {
-            JSONObject ext = new JSONObject(original);
-            JSONArray drives = ext.optJSONArray("drives");
-            if (drives == null) return original;
-            boolean changed = false;
-            for (int i = 0; i < drives.length(); i++) {
-                JSONObject drive = drives.optJSONObject(i);
-                if (drive == null || !host.equals(SubscriptionAuth.hostOf(drive.optString("server", "")))) continue;
-                JSONObject login = drive.optJSONObject("login");
-                if (login != null && !login.optString("username", "").isBlank() && !login.optString("password", "").isBlank()) continue;
-                drive.put("login", new JSONObject().put("username", username).put("password", password));
-                changed = true;
+            if (trimmed.startsWith("[")) {
+                JSONArray ext = new JSONArray(original);
+                boolean changed = fillArrayExt(ext, host, username, password);
+                return changed ? ext.toString() : original;
             }
+            if (!trimmed.startsWith("{")) return original;
+            JSONObject ext = new JSONObject(original);
+            boolean changed = false;
+            JSONArray drives = ext.optJSONArray("drives");
+            if (drives != null) changed = fillDrives(drives, host, username, password);
+            else if (ext.has("server")) changed = fillDriveLogin(ext, host, username, password);
             return changed ? ext.toString() : original;
         } catch (JSONException unreadable) {
             return original;
         }
+    }
+
+    /**
+     * Xiaoya's array ext: a {@code {"type":"global", ...}} entry (its
+     * {@code "username"} is an empty placeholder) followed by drive objects.
+     * The global entry gets the shared account; each drive on the subscription
+     * host gets a {@code login} object. Nested {@code drives} arrays inside an
+     * element are filled too, so a mixed shape still works.
+     */
+    private boolean fillArrayExt(JSONArray ext, String host, String username, String password) {
+        boolean changed = false;
+        for (int i = 0; i < ext.length(); i++) {
+            JSONObject element = ext.optJSONObject(i);
+            if (element == null) continue;
+            if (element.has("drives")) {
+                if (fillDrives(element.optJSONArray("drives"), host, username, password)) changed = true;
+                continue;
+            }
+            if (!element.has("server")) {
+                // The global entry (or any server-less entry): fill the shared account.
+                if (element.optString("username", "").isBlank()) { element.put("username", username); changed = true; }
+                if (element.optString("password", "").isBlank()) { element.put("password", password); changed = true; }
+                continue;
+            }
+            if (fillDriveLogin(element, host, username, password)) changed = true;
+        }
+        return changed;
+    }
+
+    /** Fills {@code login} on every drive in the array whose server is the subscription host. */
+    private boolean fillDrives(JSONArray drives, String host, String username, String password) {
+        boolean changed = false;
+        if (drives == null) return false;
+        for (int i = 0; i < drives.length(); i++) {
+            JSONObject drive = drives.optJSONObject(i);
+            if (drive == null) continue;
+            if (fillDriveLogin(drive, host, username, password)) changed = true;
+        }
+        return changed;
+    }
+
+    /** Adds {@code login: {username, password}} to one drive on the subscription host, if it has none. */
+    private boolean fillDriveLogin(JSONObject drive, String host, String username, String password) {
+        if (drive == null || !host.equals(SubscriptionAuth.hostOf(drive.optString("server", "")))) return false;
+        JSONObject login = drive.optJSONObject("login");
+        if (login != null && !login.optString("username", "").isBlank() && !login.optString("password", "").isBlank()) return false;
+        drive.put("login", new JSONObject().put("username", username).put("password", password));
+        return true;
     }
     /**
      * Pan spiders of the csp_Config family read raw drive cookies from {@code files/.quark}, {@code .uc}
