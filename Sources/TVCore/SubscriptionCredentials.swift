@@ -3,6 +3,7 @@ import Security
 
 /// HTTP Basic Auth for one subscription host, e.g. Xiaoya with forced login on:
 /// user name `dav`, password from `/etc/xiaoya/guestpass.txt`.
+
 /// The password lives in the Keychain and in memory, never in the subscription list
 /// (UserDefaults), in a file, or in logs.
 public struct SubscriptionCredential: Codable, Hashable, Sendable {

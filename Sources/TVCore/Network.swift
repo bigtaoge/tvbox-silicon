@@ -15,11 +15,22 @@ public struct HTTPClient: Sendable {
     /// accepted.
     public func get(_ url: URL, headers: [String: String] = [:], fresh: Bool = false, limit: Int = 20_000_000) async throws -> (Data, URL) {
         if let data = try ImportedFiles.data(at: url) { return (data, url) }
+        // A source whose subscription needs a sign-in (Xiaoya with forced login on) keeps
+        // needing it after the import: its CMS API, posters and play links all live on the
+        // same host, and the spider's own requests go through this same client on the Swift
+        // side. Add the saved Basic header for that host only, and only when the caller did
+        // not already supply one. Looked up on the original URL, and only sent when the
+        // address actually fetched is that same host — never to a GitHub mirror.
+        let savedAuthorization: String? = headers.keys.contains(where: { $0.lowercased() == "authorization" }) ? nil
+            : SubscriptionCredentials.shared.authorizationHeader(for: url)
         return try await mirrors.fetch(url, timeout: 25) { [session] address, timeout in
             var request = URLRequest(url: address, timeoutInterval: timeout)
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
             if fresh { request.cachePolicy = .reloadIgnoringLocalCacheData }
             for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+            if address.host()?.lowercased() == url.host()?.lowercased(), let savedAuthorization {
+                request.setValue(savedAuthorization, forHTTPHeaderField: "Authorization")
+            }
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw TVError.invalidConfiguration }
             guard (200..<300).contains(http.statusCode) else { throw TVError.http(http.statusCode) }

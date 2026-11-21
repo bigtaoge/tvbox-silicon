@@ -118,12 +118,29 @@ public actor EmbeddedJarHost {
         var input: [String: JSONValue] = ["session": .string(key), "runtime": .string(digest), "runtimeCache": .string(runtime.path), "jar": .string(jar.path), "cache": .string(job.path), "conversionCache": .string(root.appendingPathComponent("Converted").path), "profile": .string(root.appendingPathComponent(profileKey).appendingPathComponent("profile").path), "api": .string(site.api), "key": .string(site.sourceKey), "ext": .string(ext)]
         // Plugins read the loaded subscription from the host app's database (see HostDatabase.java).
         input["subscription"] = .string(configurationOrigin.absoluteString)
+        // The subscription host's sign-in, for the JVM side: the spider in the jar fetches
+        // from the same host (AList / WebDAV) with its own HTTP client, which never sees
+        // Swift's headers. Only the already-encoded header value travels, never the
+        // password on its own; the Java side decodes it only to fill the AList spider's
+        // `drives[].login` (see SubscriptionAuth / CloudDriveBridge). A changed sign-in
+        // must open a fresh session, or the old spider keeps the old login.
+        var authDigest = ""
+        if let credential = SubscriptionCredentials.shared.credential(for: configurationOrigin),
+           let header = credential.authorizationHeader,
+           let host = configurationOrigin.host,
+           let authData = try? JSONEncoder().encode(["host": host, "authorization": header]),
+           let authText = String(data: authData, encoding: .utf8) {
+            input["subscriptionAuth"] = .string(authText)
+            authDigest = String(PluginChecksum.sha256(authData).prefix(12))
+        }
         // Saved Quark/UC sign-ins; the spider reads them when it is created.
         input["cloudAccounts"] = .string(CloudDriveAccounts.fileURL.path)
         #if !os(macOS)
         // The embedded JVM cannot restart, so a new sign-in opens a fresh session for the source.
         let accounts = CloudDriveAccounts.revision
-        if !accounts.isEmpty { input["session"] = .string(key + "-" + accounts) }
+        if !accounts.isEmpty || !authDigest.isEmpty {
+            input["session"] = .string(key + "-" + accounts + authDigest)
+        }
         #endif
         progress?.report(.queued)
         let monitor = progress?.observe(job.appendingPathComponent("preparation-progress.json"))
