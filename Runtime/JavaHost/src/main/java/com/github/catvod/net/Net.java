@@ -673,6 +673,13 @@ public final class Net implements AutoCloseable {
 
     private Response interceptCookies(Interceptor.Chain chain, Request request, NetOptions options) throws IOException {
         Request next = withCookies(chain.request(), request.url(), request.header("Cookie"), options);
+        // Belt and braces for the subscription sign-in: Net builds its client from
+        // Spider.client(), whose interceptor already adds it, but a request rebuilt
+        // here must not lose it. Exact host only, never when already present.
+        if (next.header("Authorization") == null) {
+            String header = tvbox.runtime.SubscriptionAuth.headerFor(next.url().host());
+            if (header != null) next = next.newBuilder().header("Authorization", header).build();
+        }
         Response response = chain.proceed(next);
         try {
             saveCookies(response, options);
