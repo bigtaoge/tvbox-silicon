@@ -2,8 +2,8 @@
 "%@ hasn't turned on search. Its administrator can build the search index in AList's settings." = "%@ hasn't turned on search. Its administrator can build the search index in AList's settings.";
 "My %@" = "My %@";
 "This folder has no videos Apple devices can play." = "This folder has no videos Apple devices can play.";
-"Yingxia" = "Yingxia";
-"Yingxia / TVBOX" = "Yingxia / TVBOX";
+"Yingxia" = "影匣Pro";
+"Yingxia / TVBOX" = "影匣Pro / TVBOX";
 "Watch Now" = "Watch Now";
 "Live TV" = "Live TV";
 "Sources" = "Sources";
@@ -36,7 +36,7 @@
 "URL Playback" = "URL Playback";
 "Plugins" = "Plugins";
 "JAR Runtime and Compatibility" = "JAR Runtime and Compatibility";
-"About Yingxia" = "About Yingxia";
+"About Yingxia" = "About 影匣Pro";
 "macOS · iOS · tvOS / Native SwiftUI + AVPlayer" = "macOS · iOS · tvOS / Native SwiftUI + AVPlayer";
 "Open Source Licenses" = "Open Source Licenses";
 "Supports TVBox JSON subscriptions, M3U / TXT live playlists, and standard type 1 / type 4 JSON APIs. Media formats depend on the device. Local JavaScript and Python plugins are experimental on Mac, and JAR plugins are experimental on every platform; compatibility varies by source." = "Supports TVBox JSON subscriptions, M3U / TXT live playlists, and standard type 1 / type 4 JSON APIs. Media formats depend on the device. Local JavaScript and Python plugins are experimental on Mac, and JAR plugins are experimental on every platform; compatibility varies by source.";
@@ -346,8 +346,8 @@
 "About" = "About";
 "Version %@" = "Version %@";
 "Paste Credentials Manually" = "Paste Credentials Manually";
-"Sign in on the provider's official page. Yingxia stores the login on this Mac and supplies it to the plugins you run." = "Sign in on the provider's official page. Yingxia stores the login on this Mac and supplies it to the plugins you run.";
-"Sign in by scanning a code with the drive's phone app. Yingxia keeps the sign-in on this device and supplies it to the plugins you run." = "Sign in by scanning a code with the drive's phone app. Yingxia keeps the sign-in on this device and supplies it to the plugins you run.";
+"Sign in on the provider's official page. Yingxia stores the login on this Mac and supplies it to the plugins you run." = "Sign in on the provider's official page. 影匣Pro stores the login on this Mac and supplies it to the plugins you run.";
+"Sign in by scanning a code with the drive's phone app. Yingxia keeps the sign-in on this device and supplies it to the plugins you run." = "Sign in by scanning a code with the drive's phone app. 影匣Pro keeps the sign-in on this device and supplies it to the plugins you run.";
 "Sources: %lld · Live playlists: %lld" = "Sources: %lld · Live playlists: %lld";
 "Last updated %@" = "Last updated %@";
 "Run Test" = "Run Test";
@@ -385,7 +385,7 @@
 "%lld of %lld sources responded" = "%lld of %lld sources responded";
 "First-time setup can take a few minutes. Keep the app open." = "First-time setup can take a few minutes. Keep the app open.";
 "This source requires Android features that the plugin runtime does not support yet." = "This source requires Android features that the plugin runtime does not support yet.";
-"This entry opens the source's own settings or sign-in screen (such as a QR code), which Yingxia can't show. Sign in under Settings → Cloud Drive Accounts instead." = "This entry opens the source's own settings or sign-in screen (such as a QR code), which Yingxia can't show. Sign in under Settings → Cloud Drive Accounts instead.";
+"This entry opens the source's own settings or sign-in screen (such as a QR code), which Yingxia can't show. Sign in under Settings → Cloud Drive Accounts instead." = "This entry opens the source's own settings or sign-in screen (such as a QR code), which 影匣Pro can't show. Sign in under Settings → Cloud Drive Accounts instead.";
 "This source needs an Android feature that isn't supported yet: %@." = "This source needs an Android feature that isn't supported yet: %@.";
 "This plugin couldn't be prepared on this device (missing %@)." = "This plugin couldn't be prepared on this device (missing %@).";
 "This plugin couldn't be prepared on this device (%@ could not be converted)." = "This plugin couldn't be prepared on this device (%@ could not be converted).";
@@ -432,16 +432,16 @@
 "Check Now" = "Check Now";
 "Checking…" = "Checking…";
 "Last checked %@" = "Last checked %@";
-"Yingxia is up to date" = "Yingxia is up to date";
-"Yingxia %@ is the latest version." = "Yingxia %@ is the latest version.";
+"Yingxia is up to date" = "影匣Pro is up to date";
+"Yingxia %@ is the latest version." = "影匣Pro %@ is the latest version.";
 "Couldn't check for updates: %@" = "Couldn't check for updates: %@";
-"Yingxia %@ is available" = "Yingxia %@ is available";
+"Yingxia %@ is available" = "影匣Pro %@ is available";
 "New features are waiting for you." = "New features are waiting for you.";
 "See What's New" = "See What's New";
 "What's New in Version %@" = "What's New in Version %@";
-"What's New in Yingxia" = "What's New in Yingxia";
+"What's New in Yingxia" = "What's New in 影匣Pro";
 "Something New Is Here" = "Something New Is Here";
-"Yingxia %@ is ready with new features." = "Yingxia %@ is ready with new features.";
+"Yingxia %@ is ready with new features." = "影匣Pro %@ is ready with new features.";
 "Get the Update" = "Get the Update";
 "Not Now" = "Not Now";
 "Install and Relaunch" = "Install and Relaunch";
@@ -452,21 +452,21 @@
 "Relaunching…" = "Relaunching…";
 "Download Manually" = "Download Manually";
 "The update couldn't be installed: %@" = "The update couldn't be installed: %@";
-"This update can't be installed from within Yingxia yet. Download it instead." = "This update can't be installed from within Yingxia yet. Download it instead.";
-"Yingxia couldn't relaunch to finish the update. Quit Yingxia and open it again." = "Yingxia couldn't relaunch to finish the update. Quit Yingxia and open it again.";
+"This update can't be installed from within Yingxia yet. Download it instead." = "This update can't be installed from within 影匣Pro yet. Download it instead.";
+"Yingxia couldn't relaunch to finish the update. Quit Yingxia and open it again." = "影匣Pro couldn't relaunch to finish the update. Quit 影匣Pro and open it again.";
 "Install Updates Automatically" = "Install Updates Automatically";
-"Yingxia downloads updates in the background and installs them the next time it quits." = "Yingxia downloads updates in the background and installs them the next time it quits.";
+"Yingxia downloads updates in the background and installs them the next time it quits." = "影匣Pro downloads updates in the background and installs them the next time it quits.";
 "Continue" = "Continue";
 "New" = "New";
 "Scan with your iPhone to get the update." = "Scan with your iPhone to get the update.";
-"Yingxia %@" = "Yingxia %@";
+"Yingxia %@" = "影匣Pro %@";
 "What's New" = "What's New";
 "Now Available" = "Now Available";
 "New build (%@) in TestFlight" = "New build (%@) in TestFlight";
 "In TestFlight" = "In TestFlight";
 "Open TestFlight" = "Open TestFlight";
-"Yingxia %@ is ready in TestFlight. Open TestFlight and tap Update to get these features." = "Yingxia %@ is ready in TestFlight. Open TestFlight and tap Update to get these features.";
-"Yingxia %@ is ready in TestFlight. Open TestFlight on this Apple TV and update Yingxia to get these features." = "Yingxia %@ is ready in TestFlight. Open TestFlight on this Apple TV and update Yingxia to get these features.";
+"Yingxia %@ is ready in TestFlight. Open TestFlight and tap Update to get these features." = "影匣Pro %@ is ready in TestFlight. Open TestFlight and tap Update to get these features.";
+"Yingxia %@ is ready in TestFlight. Open TestFlight on this Apple TV and update Yingxia to get these features." = "影匣Pro %@ is ready in TestFlight. Open TestFlight on this Apple TV and update 影匣Pro to get these features.";
 "Here's what's new in version %@." = "Here's what's new in version %@.";
 "Bilibili" = "Bilibili";
 "Bilibili Account" = "Bilibili Account";
@@ -697,7 +697,7 @@
 "Subscriptions" = "Subscriptions";
 "Add Subscription" = "Add Subscription";
 "Add This Subscription?" = "Add This Subscription?";
-"A page can only ask: Yingxia adds this subscription after you agree, never on its own." = "A page can only ask: Yingxia adds this subscription after you agree, never on its own.";
+"A page can only ask: Yingxia adds this subscription after you agree, never on its own." = "A page can only ask: 影匣Pro adds this subscription after you agree, never on its own.";
 "Refresh All" = "Refresh All";
 "Move Up" = "Move Up";
 "Move Down" = "Move Down";
@@ -728,9 +728,9 @@
 "Signing In on Apple TV" = "Signing In on Apple TV";
 "Apple TV can't show Douyin's sign-in page. Sign in here first, then open Settings > Douyin on the Apple TV and scan its code with this iPhone's Camera." = "Apple TV can't show Douyin's sign-in page. Sign in here first, then open Settings > Douyin on the Apple TV and scan its code with this iPhone's Camera.";
 "Sign In to Douyin" = "Sign In to Douyin";
-"Douyin signs in only on its own web page, which Apple TV can't show. Sign in with Yingxia on your iPhone instead:" = "Douyin signs in only on its own web page, which Apple TV can't show. Sign in with Yingxia on your iPhone instead:";
-"On your iPhone, open Yingxia, go to Settings > Douyin, and sign in." = "On your iPhone, open Yingxia, go to Settings > Douyin, and sign in.";
-"Scan this code with the iPhone's Camera and open it in Yingxia." = "Scan this code with the iPhone's Camera and open it in Yingxia.";
+"Douyin signs in only on its own web page, which Apple TV can't show. Sign in with Yingxia on your iPhone instead:" = "Douyin signs in only on its own web page, which Apple TV can't show. Sign in with 影匣Pro on your iPhone instead:";
+"On your iPhone, open Yingxia, go to Settings > Douyin, and sign in." = "On your iPhone, open 影匣Pro, go to Settings > Douyin, and sign in.";
+"Scan this code with the iPhone's Camera and open it in Yingxia." = "Scan this code with the iPhone's Camera and open it in 影匣Pro.";
 "Tap Send to Apple TV." = "Tap Send to Apple TV.";
 "Waiting for your iPhone…" = "Waiting for your iPhone…";
 "Douyin answers live searches only for signed-in accounts." = "Douyin answers live searches only for signed-in accounts.";
@@ -748,7 +748,7 @@
 "Use This Subscription" = "Use This Subscription";
 "Order" = "Order";
 "Not set" = "Not set";
-"The source took too long to respond, so Yingxia stopped waiting. Try another line, or try again later." = "The source took too long to respond, so Yingxia stopped waiting. Try another line, or try again later.";
+"The source took too long to respond, so Yingxia stopped waiting. Try another line, or try again later." = "The source took too long to respond, so 影匣Pro stopped waiting. Try another line, or try again later.";
 "This line plays from %@, but its sign-in code couldn't be shown. Choose another line." = "This line plays from %@, but its sign-in code couldn't be shown. Choose another line.";
 "This source needs your %@ account for this line. Sign in with its code, and the episode plays." = "This source needs your %@ account for this line. Sign in with its code, and the episode plays.";
 "Baidu Netdisk" = "Baidu Netdisk";
@@ -760,7 +760,7 @@
 "The original file is MKV, which Apple devices can't play, so the %@ line is playing instead." = "The original file is MKV, which Apple devices can't play, so the %@ line is playing instead.";
 "Sign In to %@" = "Sign In to %@";
 "%@ needs this account for the line you chose. The video plays once you confirm." = "%@ needs this account for the line you chose. The video plays once you confirm.";
-"Sign in to Quark and UC on their official page, and to Baidu and Aliyun by scanning a code with their phone app. Yingxia stores the login on this Mac and supplies it to the plugins you run." = "Sign in to Quark and UC on their official page, and to Baidu and Aliyun by scanning a code with their phone app. Yingxia stores the login on this Mac and supplies it to the plugins you run.";
+"Sign in to Quark and UC on their official page, and to Baidu and Aliyun by scanning a code with their phone app. Yingxia stores the login on this Mac and supplies it to the plugins you run." = "Sign in to Quark and UC on their official page, and to Baidu and Aliyun by scanning a code with their phone app. 影匣Pro stores the login on this Mac and supplies it to the plugins you run.";
 "Baidu Cookie (BDUSS, STOKEN)" = "Baidu Cookie (BDUSS, STOKEN)";
 "115 Cookie (UID, CID, SEID)" = "115 Cookie (UID, CID, SEID)";
 
@@ -769,7 +769,7 @@
 "Song, or song and artist" = "Song, or song and artist";
 "Music Settings" = "Music Settings";
 "Search for a Song" = "Search for a Song";
-"Type a song's name, or its name and the artist. Yingxia finds the recording and plays it from the best channel available, lossless first." = "Type a song's name, or its name and the artist. Yingxia finds the recording and plays it from the best channel available, lossless first.";
+"Type a song's name, or its name and the artist. Yingxia finds the recording and plays it from the best channel available, lossless first." = "Type a song's name, or its name and the artist. 影匣Pro finds the recording and plays it from the best channel available, lossless first.";
 "Unable to Search Music" = "Unable to Search Music";
 "Check your network connection and try again." = "Check your network connection and try again.";
 "No Matching Songs" = "No Matching Songs";
@@ -914,17 +914,17 @@
 "Today's feedback from everyone has reached its limit. You can send yours after %@." = "Today's feedback from everyone has reached its limit. You can send yours after %@.";
 "Today's feedback from everyone has reached its limit. Please try again later." = "Today's feedback from everyone has reached its limit. Please try again later.";
 "Couldn't send feedback. Please try again later." = "Couldn't send feedback. Please try again later.";
-"Help Make Yingxia Better" = "Help Make Yingxia Better";
+"Help Make Yingxia Better" = "Help Make 影匣Pro Better";
 "Report a problem or share an idea. It goes straight to the developer." = "Report a problem or share an idea. It goes straight to the developer.";
 "Report a problem or share an idea" = "Report a problem or share an idea";
 "Something isn't working" = "Something isn't working";
 "An idea or a wish" = "An idea or a wish";
 "Anything else" = "Anything else";
 "What happened? What did you expect instead?" = "What happened? What did you expect instead?";
-"What would make Yingxia better for you?" = "What would make Yingxia better for you?";
+"What would make Yingxia better for you?" = "What would make 影匣Pro better for you?";
 "What's on your mind?" = "What's on your mind?";
 "Sent with your message" = "Sent with your message";
-"Your feedback becomes a public issue on Yingxia's GitHub page, with the app and system versions, the device model, the language and the included details. Please don't include accounts or passwords." = "Your feedback becomes a public issue on Yingxia's GitHub page, with the app and system versions, the device model, the language and the included details. Please don't include accounts or passwords.";
+"Your feedback becomes a public issue on Yingxia's GitHub page, with the app and system versions, the device model, the language and the included details. Please don't include accounts or passwords." = "Your feedback becomes a public issue on 影匣Pro's GitHub page, with the app and system versions, the device model, the language and the included details. Please don't include accounts or passwords.";
 "Included Details" = "Included Details";
 "Include Details" = "Include Details";
 "Add Photos or Videos" = "Add Photos or Videos";
@@ -966,10 +966,10 @@
 "Saved to Photos" = "Saved to Photos";
 "Save Code to Photos" = "Save Code to Photos";
 "In the %@ app, tap Scan, then choose this photo." = "In the %@ app, tap Scan, then choose this photo.";
-"Allow Yingxia to add photos in Settings, then try again." = "Allow Yingxia to add photos in Settings, then try again.";
+"Allow Yingxia to add photos in Settings, then try again." = "Allow 影匣Pro to add photos in Settings, then try again.";
 "Sign in on Bilibili's page with a text-message code or your password, or scan a code with the Bilibili app on another phone. Without signing in, videos play at up to 1080P and anime and films at 480P." = "Sign in on Bilibili's page with a text-message code or your password, or scan a code with the Bilibili app on another phone. Without signing in, videos play at up to 1080P and anime and films at 480P.";
 "Sign in for your feed, favorites and higher quality." = "Sign in for your feed, favorites and higher quality.";
-"Sign in on the drive's own page, or scan a code with the drive's app on another phone. Yingxia keeps the sign-in on this device and supplies it to the plugins you run." = "Sign in on the drive's own page, or scan a code with the drive's app on another phone. Yingxia keeps the sign-in on this device and supplies it to the plugins you run.";
+"Sign in on the drive's own page, or scan a code with the drive's app on another phone. Yingxia keeps the sign-in on this device and supplies it to the plugins you run." = "Sign in on the drive's own page, or scan a code with the drive's app on another phone. 影匣Pro keeps the sign-in on this device and supplies it to the plugins you run.";
 "Open the %@ app on another phone, scan this code, and confirm the sign-in." = "Open the %@ app on another phone, scan this code, and confirm the sign-in.";
 "Or scan this code with the %@ app on another phone." = "Or scan this code with the %@ app on another phone.";
 "Sign In on This iPhone" = "Sign In on This iPhone";
@@ -1010,9 +1010,9 @@
 "Password (Optional)" = "Password (Optional)";
 "No AList, WebDAV, Emby, Jellyfin or fnOS server answered at this address." = "No AList, WebDAV, Emby, Jellyfin or fnOS server answered at this address.";
 "This server doesn't let guests browse. Enter a user name and password." = "This server doesn't let guests browse. Enter a user name and password.";
-"Sign in to Quark and UC on their official page. Yingxia stores the login on this Mac." = "Sign in to Quark and UC on their official page. Yingxia stores the login on this Mac.";
-"Sign in on the drive's own page, or scan a code with the drive's app on another phone. Yingxia keeps the sign-in on this device." = "Sign in on the drive's own page, or scan a code with the drive's app on another phone. Yingxia keeps the sign-in on this device.";
-"Sign in by scanning a code with the drive's phone app. Yingxia keeps the sign-in on this device." = "Sign in by scanning a code with the drive's phone app. Yingxia keeps the sign-in on this device.";
+"Sign in to Quark and UC on their official page. Yingxia stores the login on this Mac." = "Sign in to Quark and UC on their official page. 影匣Pro stores the login on this Mac.";
+"Sign in on the drive's own page, or scan a code with the drive's app on another phone. Yingxia keeps the sign-in on this device." = "Sign in on the drive's own page, or scan a code with the drive's app on another phone. 影匣Pro keeps the sign-in on this device.";
+"Sign in by scanning a code with the drive's phone app. Yingxia keeps the sign-in on this device." = "Sign in by scanning a code with the drive's phone app. 影匣Pro keeps the sign-in on this device.";
 "Picture in Picture" = "Picture in Picture";
 "Playing in Picture in Picture" = "Playing in Picture in Picture";
 "Audio" = "Audio";
@@ -1034,22 +1034,22 @@
 "Learn More" = "Learn More";
 "Messages" = "Messages";
 "No Messages" = "No Messages";
-"News and notices from Yingxia appear here." = "News and notices from Yingxia appear here.";
-"%@ didn't answer. Make sure Yingxia is open on it and both devices are on the same network." = "%@ didn't answer. Make sure Yingxia is open on it and both devices are on the same network.";
-"Turn on Local Network for Yingxia in the Settings app, then try again." = "Turn on Local Network for Yingxia in the Settings app, then try again.";
+"News and notices from Yingxia appear here." = "News and notices from 影匣Pro appear here.";
+"%@ didn't answer. Make sure Yingxia is open on it and both devices are on the same network." = "%@ didn't answer. Make sure 影匣Pro is open on it and both devices are on the same network.";
+"Turn on Local Network for Yingxia in the Settings app, then try again." = "Turn on Local Network for 影匣Pro in the Settings app, then try again.";
 "This file's drive isn't in Cloud Files on %@. Add it there, then try again." = "This file's drive isn't in Cloud Files on %@. Add it there, then try again.";
-"Yingxia on %@ doesn't have the source %@. Add the same subscription there, then try again." = "Yingxia on %@ doesn't have the source %@. Add the same subscription there, then try again.";
+"Yingxia on %@ doesn't have the source %@. Add the same subscription there, then try again." = "影匣Pro on %@ doesn't have the source %@. Add the same subscription there, then try again.";
 "Couldn't play what %@ sent: %@" = "Couldn't play what %@ sent: %@";
 "From %@" = "From %@";
 "%@ couldn't play this video." = "%@ couldn't play this video.";
 "Playing on %@" = "Playing on %@";
 "Play Here" = "Play Here";
-"This video plays from inside Yingxia on this device, so %@ can't open it." = "This video plays from inside Yingxia on this device, so %@ can't open it.";
+"This video plays from inside Yingxia on this device, so %@ can't open it." = "This video plays from inside 影匣Pro on this device, so %@ can't open it.";
 "Play On" = "Play On";
 "Play on Another Device" = "Play on Another Device";
 "Couldn't Play on %@" = "Couldn't Play on %@";
 "Play from Other Devices" = "Play from Other Devices";
-"With Yingxia open here, your other devices on the same network can send it what they play: tap Play On in their player." = "With Yingxia open here, your other devices on the same network can send it what they play: tap Play On in their player.";
+"With Yingxia open here, your other devices on the same network can send it what they play: tap Play On in their player." = "With 影匣Pro open here, your other devices on the same network can send it what they play: tap Play On in their player.";
 "Touch and Hold Speed" = "Touch and Hold Speed";
 "Touch and hold the video to play at this speed. Slide sideways to change it, or slide down to keep it after you let go." = "Touch and hold the video to play at this speed. Slide sideways to change it, or slide down to keep it after you let go.";
 "Slide sideways to change the speed, or down to keep it" = "Slide sideways to change the speed, or down to keep it";
@@ -1064,7 +1064,7 @@
 "Slide up or down on the left of the video to change the brightness, or on the right to change the volume." = "Slide up or down on the left of the video to change the brightness, or on the right to change the volume.";
 "Custom Search Order" = "Custom Search Order";
 "Sources at the top are searched first, and their results are listed first." = "Sources at the top are searched first, and their results are listed first.";
-"Yingxia searches quick, reliable sources first." = "Yingxia searches quick, reliable sources first.";
+"Yingxia searches quick, reliable sources first." = "影匣Pro searches quick, reliable sources first.";
 "Arrange" = "Arrange";
 "Arrange Sources" = "Arrange Sources";
 "Drag sources to reorder them. Sources at the top are searched first, and their results are listed first." = "Drag sources to reorder them. Sources at the top are searched first, and their results are listed first.";
@@ -1123,7 +1123,7 @@
 "TMDB" = "TMDB";
 "Search TMDB" = "Search TMDB";
 "Look Up Titles on TMDB" = "Look Up Titles on TMDB";
-"Shows cast, artwork and episode details from TMDB on video pages. Sends the video's title, its details from the source and the source's name to Yingxia's lookup service, never your accounts or subscription addresses." = "Shows cast, artwork and episode details from TMDB on video pages. Sends the video's title, its details from the source and the source's name to Yingxia's lookup service, never your accounts or subscription addresses.";
+"Shows cast, artwork and episode details from TMDB on video pages. Sends the video's title, its details from the source and the source's name to Yingxia's lookup service, never your accounts or subscription addresses." = "Shows cast, artwork and episode details from TMDB on video pages. Sends the video's title, its details from the source and the source's name to 影匣Pro's lookup service, never your accounts or subscription addresses.";
 "You May Like" = "You May Like";
 
 /* Short-drama sources */
@@ -1391,9 +1391,9 @@
 "LX Music Sources" = "LX Music Sources";
 "LX Music Source" = "LX Music Source";
 "This file is not an LX Music source." = "This file is not an LX Music source.";
-"This source plays none of the catalogs Yingxia searches (QQ Music, NetEase Cloud Music, Kuwo, Migu)." = "This source plays none of the catalogs Yingxia searches (QQ Music, NetEase Cloud Music, Kuwo, Migu).";
+"This source plays none of the catalogs Yingxia searches (QQ Music, NetEase Cloud Music, Kuwo, Migu)." = "This source plays none of the catalogs 影匣Pro searches (QQ Music, NetEase Cloud Music, Kuwo, Migu).";
 "The LX Music source did not start: %@" = "The LX Music source did not start: %@";
-"Scripts made for LX Music's custom sources. They are asked for a song's audio after the channels above, for QQ Music, NetEase Cloud Music, Kuwo and Migu songs. Yingxia includes none: add only sources you trust." = "Scripts made for LX Music's custom sources. They are asked for a song's audio after the channels above, for QQ Music, NetEase Cloud Music, Kuwo and Migu songs. Yingxia includes none: add only sources you trust.";
+"Scripts made for LX Music's custom sources. They are asked for a song's audio after the channels above, for QQ Music, NetEase Cloud Music, Kuwo and Migu songs. Yingxia includes none: add only sources you trust." = "Scripts made for LX Music's custom sources. They are asked for a song's audio after the channels above, for QQ Music, NetEase Cloud Music, Kuwo and Migu songs. 影匣Pro includes none: add only sources you trust.";
 "Added “%@”." = "Added “%@”.";
 "Remove “%@”" = "Remove “%@”";
 "Add from Address" = "Add from Address";
@@ -1407,8 +1407,8 @@
 "This extension plays songs through an LX Music source." = "This extension plays songs through an LX Music source.";
 "This extension plays songs through an LX Music source. Add one in Music Settings." = "This extension plays songs through an LX Music source. Add one in Music Settings.";
 "None of your LX Music sources plays this song's catalog." = "None of your LX Music sources plays this song's catalog.";
-"This extension asks an LX Music source for something Yingxia doesn't support." = "This extension asks an LX Music source for something Yingxia doesn't support.";
-"Scripts in the Listenify music extension format. Their charts and playlists show on the Music page and their songs in Music search; songs play from what the extension gives, or through your LX Music sources when it asks for one. Yingxia includes none: add only extensions you trust." = "Scripts in the Listenify music extension format. Their charts and playlists show on the Music page and their songs in Music search; songs play from what the extension gives, or through your LX Music sources when it asks for one. Yingxia includes none: add only extensions you trust.";
+"This extension asks an LX Music source for something Yingxia doesn't support." = "This extension asks an LX Music source for something 影匣Pro doesn't support.";
+"Scripts in the Listenify music extension format. Their charts and playlists show on the Music page and their songs in Music search; songs play from what the extension gives, or through your LX Music sources when it asks for one. Yingxia includes none: add only extensions you trust." = "Scripts in the Listenify music extension format. Their charts and playlists show on the Music page and their songs in Music search; songs play from what the extension gives, or through your LX Music sources when it asks for one. 影匣Pro includes none: add only extensions you trust.";
 "Douban Hot Lists" = "Douban Hot Lists";
 "Douban Hot Movies" = "Douban Hot Movies";
 "Douban Hot Series" = "Douban Hot Series";
@@ -1654,7 +1654,7 @@
 
 /* Subtitle sources (#576 M2) */
 "It uses manifest format %@." = "It uses manifest format %@.";
-"It needs a newer version of Yingxia." = "It needs a newer version of Yingxia.";
+"It needs a newer version of Yingxia." = "It needs a newer version of 影匣Pro.";
 "Its identifier is not valid." = "Its identifier is not valid.";
 "It doesn't list the sites it uses." = "It doesn't list the sites it uses.";
 "Its settings repeat a name." = "Its settings repeat a name.";
@@ -1668,7 +1668,7 @@
 "No subtitles found." = "No subtitles found.";
 "Add your key for it in Settings › Subtitle Sources." = "Add your key for it in Settings › Subtitle Sources.";
 "Your key or sign-in no longer works. Check it in Settings › Subtitle Sources." = "Your key or sign-in no longer works. Check it in Settings › Subtitle Sources.";
-"This source doesn't work with this version of Yingxia. %@" = "This source doesn't work with this version of Yingxia. %@";
+"This source doesn't work with this version of Yingxia. %@" = "This source doesn't work with this version of 影匣Pro. %@";
 "The file didn't download. %@" = "The file didn't download. %@";
 "The source tried to reach a site it didn't list (%@)." = "The source tried to reach a site it didn't list (%@).";
 "The source failed." = "The source failed.";
@@ -1774,8 +1774,8 @@
 "No results match these filters. Only songs QQ Music lists have a year, genre and language." = "No results match these filters. Only songs QQ Music lists have a year, genre and language.";
 "%@ views" = "%@ views";
 "%@ danmaku" = "%@ danmaku";
-"Add to Yingxia Favorites" = "Add to Yingxia Favorites";
-"Remove from Yingxia Favorites" = "Remove from Yingxia Favorites";
+"Add to Yingxia Favorites" = "Add to 影匣Pro Favorites";
+"Remove from Yingxia Favorites" = "Remove from 影匣Pro Favorites";
 "Chapter %lld" = "Chapter %lld";
 "All Comments" = "All Comments";
 "Start Over" = "Start Over";
@@ -1801,13 +1801,13 @@
 "Douban" = "Douban";
 "System Language" = "System Language";
 "Restart Now" = "Restart Now";
-"Restart Yingxia to use the new language." = "Restart Yingxia to use the new language.";
+"Restart Yingxia to use the new language." = "Restart 影匣Pro to use the new language.";
 
 /* Live plugins */
 "%@ couldn't be downloaded." = "%@ couldn't be downloaded.";
 "%@ didn't match its checksum, so it wasn't installed." = "%@ didn't match its checksum, so it wasn't installed.";
 "%@ wasn't updated. %@" = "%@ wasn't updated. %@";
-"A plugin's scripts run inside Yingxia and reach only the internet. Add sources you trust." = "A plugin's scripts run inside Yingxia and reach only the internet. Add sources you trust.";
+"A plugin's scripts run inside Yingxia and reach only the internet. Add sources you trust." = "A plugin's scripts run inside 影匣Pro and reach only the internet. Add sources you trust.";
 "In Settings, add a TVBox subscription with live playlists, an M3U or TXT live playlist, or live plugins." = "In Settings, add a TVBox subscription with live playlists, an M3U or TXT live playlist, or live plugins.";
 "Install All (%lld)" = "Install All (%lld)";
 "Live Plugins" = "Live Plugins";
@@ -1827,13 +1827,13 @@
 "The plugin %@ defines no LiveParsePlugin." = "The plugin %@ defines no LiveParsePlugin.";
 "The plugin %@ is missing its script %@." = "The plugin %@ is missing its script %@.";
 "The plugin %@ isn't installed." = "The plugin %@ isn't installed.";
-"The plugin %@ needs a newer version of Yingxia." = "The plugin %@ needs a newer version of Yingxia.";
+"The plugin %@ needs a newer version of Yingxia." = "The plugin %@ needs a newer version of 影匣Pro.";
 "The plugin has no manifest.json." = "The plugin has no manifest.json.";
 "The streamer isn't live now." = "The streamer isn't live now.";
 "This address isn't a live plugin source." = "This address isn't a live plugin source.";
 "This live stream isn't FLV." = "This live stream isn't FLV.";
 "This platform's plugin can't do this." = "This platform's plugin can't do this.";
-"This video is encrypted, and Yingxia can't play it yet." = "This video is encrypted, and Yingxia can't play it yet.";
+"This video is encrypted, and Yingxia can't play it yet." = "This video is encrypted, and 影匣Pro can't play it yet.";
 "Update All (%lld)" = "Update All (%lld)";
 "Update to %@" = "Update to %@";
 "Cookie" = "Cookie";
@@ -1946,10 +1946,10 @@
 // Novels: book source runtime errors
 "The book source returned nothing." = "The book source returned nothing.";
 "The book source took too long to answer." = "The book source took too long to answer.";
-"This source needs a web view, which Yingxia does not have." = "This source needs a web view, which Yingxia does not have.";
-"This source needs a web view (@webjs), which Yingxia does not have." = "This source needs a web view (@webjs), which Yingxia does not have.";
-"This source needs a verification code, which Yingxia cannot show." = "This source needs a verification code, which Yingxia cannot show.";
-"This source needs a browser, which Yingxia does not offer." = "This source needs a browser, which Yingxia does not offer.";
+"This source needs a web view, which Yingxia does not have." = "This source needs a web view, which 影匣Pro does not have.";
+"This source needs a web view (@webjs), which Yingxia does not have." = "This source needs a web view (@webjs), which 影匣Pro does not have.";
+"This source needs a verification code, which Yingxia cannot show." = "This source needs a verification code, which 影匣Pro cannot show.";
+"This source needs a browser, which Yingxia does not offer." = "This source needs a browser, which 影匣Pro does not offer.";
 "This source made too many requests." = "This source made too many requests.";
 "This source cannot search." = "This source cannot search.";
 "This is not a text book source." = "This is not a text book source.";
@@ -2046,10 +2046,10 @@
 "A square picture works best. One with see-through corners, such as an icon made for the Mac, shows as it is." = "A square picture works best. One with see-through corners, such as an icon made for the Mac, shows as it is.";
 "Choose Picture…" = "Choose Picture…";
 "Remove Custom Picture" = "Remove Custom Picture";
-"The Dock and Finder show the icon you pick, also while Yingxia is closed." = "The Dock and Finder show the icon you pick, also while Yingxia is closed.";
-"Yingxia can't change its own icon where it's installed, so the Dock shows this icon only while Yingxia is open." = "Yingxia can't change its own icon where it's installed, so the Dock shows this icon only while Yingxia is open.";
+"The Dock and Finder show the icon you pick, also while Yingxia is closed." = "The Dock and Finder show the icon you pick, also while 影匣Pro is closed.";
+"Yingxia can't change its own icon where it's installed, so the Dock shows this icon only while Yingxia is open." = "影匣Pro can't change its own icon where it's installed, so the Dock shows this icon only while 影匣Pro is open.";
 "The icon on your Home Screen. The system confirms the change with a short message." = "The icon on your Home Screen. The system confirms the change with a short message.";
-"The icon on the Home Screen. When Yingxia sits in the top row, the picture above it stays Pocket." = "The icon on the Home Screen. When Yingxia sits in the top row, the picture above it stays Pocket.";
+"The icon on the Home Screen. When Yingxia sits in the top row, the picture above it stays Pocket." = "The icon on the Home Screen. When 影匣Pro sits in the top row, the picture above it stays Pocket.";
 
 /* Settings › Color Theme */
 "Violet" = "Violet";
@@ -2093,7 +2093,7 @@
 "Couldn't load this address: %@" = "Couldn't load this address: %@";
 "Use New Address" = "Use New Address";
 "File" = "File";
-"Yingxia keeps its own copy of this file. Later changes to the original don't reach the app; open it again to update it." = "Yingxia keeps its own copy of this file. Later changes to the original don't reach the app; open it again to update it.";
+"Yingxia keeps its own copy of this file. Later changes to the original don't reach the app; open it again to update it." = "影匣Pro keeps its own copy of this file. Later changes to the original don't reach the app; open it again to update it.";
 "Added the LX Music source “%@”. Music plays songs through it; manage it in Music Settings › LX Music Sources." = "Added the LX Music source “%@”. Music plays songs through it; manage it in Music Settings › LX Music Sources.";
 "This address is now an LX Music source. Add it again to play music through it." = "This address is now an LX Music source. Add it again to play music through it.";
 "Use This Source" = "Use This Source";
