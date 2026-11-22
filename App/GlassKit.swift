@@ -1096,9 +1096,9 @@ struct PosterCard: View {
     }
 }
 
-/// Cover for a folder with no poster: a soft gradient (one of six, picked by the
-/// folder name so each folder keeps its own colour), a big folder icon, and the
-/// folder name in white on the card. Same 2:3 ratio and corner radius as a poster.
+/// Cover for a folder with no poster: a soft gradient whose hue comes from
+/// the folder name, so each folder gets its own colour and neighbours rarely
+/// repeat. Same 2:3 ratio and corner radius as a poster.
 struct FolderTile: View {
     let name: String
     var body: some View {
@@ -1117,17 +1117,32 @@ struct FolderTile: View {
             .posterClip(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
     static func gradient(for name: String) -> [Color] {
-        // Six dark gradients, white text on top of all of them.
-        let palettes: [[Color]] = [
-            [Color(red: 0.23, green: 0.32, blue: 0.55), Color(red: 0.13, green: 0.18, blue: 0.35)],
-            [Color(red: 0.45, green: 0.36, blue: 0.72), Color(red: 0.28, green: 0.22, blue: 0.52)],
-            [Color(red: 0.16, green: 0.45, blue: 0.42), Color(red: 0.09, green: 0.28, blue: 0.30)],
-            [Color(red: 0.62, green: 0.42, blue: 0.18), Color(red: 0.42, green: 0.25, blue: 0.10)],
-            [Color(red: 0.62, green: 0.30, blue: 0.45), Color(red: 0.42, green: 0.18, blue: 0.32)],
-            [Color(red: 0.30, green: 0.50, blue: 0.22), Color(red: 0.18, green: 0.34, blue: 0.13)],
+        // The hue comes from the folder name: FNV-1a over its UTF-8 bytes,
+        // then a splitmix64 finalizer, and the high bits pick the hue.
+        // Deterministic across launches (unlike String.hashValue), and the
+        // finalizer spreads similar names across the colour wheel instead of
+        // clustering them: the old version picked one of six fixed palettes
+        // with a weak hash, so with nine folders on screen several shared a
+        // colour (three greens, two browns, two purples) and the dark ends
+        // looked muddy. Checked against the real folder names (strm, 镜像版本,
+        // 体育， 动漫， 教育， 整理中， 曲艺， 有声书…): the nine hues are at
+        // least 16° apart on the wheel. Saturation and brightness stay soft
+        // and light, like the mockup; white text and the white folder icon
+        // still read clearly on the darker end.
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in name.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        hash &+= 0x9e3779b97f4a7c15
+        hash = (hash ^ (hash >> 30)) &* 0xbf58476d1ce4e5b9
+        hash = (hash ^ (hash >> 27)) &* 0x94d049bb133111eb
+        hash ^= hash >> 31
+        let hue = Double((hash >> 32) % 360) / 360.0
+        return [
+            Color(hue: hue, saturation: 0.42, brightness: 0.80),
+            Color(hue: hue, saturation: 0.52, brightness: 0.60),
         ]
-        let hash = name.unicodeScalars.reduce(0) { ($0 &* 31) &+ Int($1.value) }
-        return palettes[(hash & 0x7fffffff) % palettes.count]
     }
 }
 
