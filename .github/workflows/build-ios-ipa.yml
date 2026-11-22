@@ -236,7 +236,7 @@ jobs:
             2>&1 | tee build/ci/archive.log
 
       # Same sanity checks as Scripts/testflight-upload.sh:
-      # bundle id must be com.jo32.yingxia.ios and the main
+      # bundle id must be com.bigtaoge.yingxiapro.ios and the main
       # binary must export _JIMAGE_Open, otherwise the embedded
       # JVM crashes the first time a Java source starts.
       - name: Verify archive
@@ -246,7 +246,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Info.plist"
-          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")" = "com.jo32.yingxia.ios"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")" = "com.bigtaoge.yingxiapro.ios"
           nm -gU "$APP/TVBox-iOS" | grep ' _JIMAGE_Open$'
 
       # An unsigned IPA is just Payload/*.app zipped, renamed .ipa
