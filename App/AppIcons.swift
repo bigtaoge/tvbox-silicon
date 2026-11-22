@@ -15,41 +15,18 @@ import UIKit
 // picture of the viewer's own, as its Dock icon while it runs, and sets it on the app itself for when it's closed. The artwork of each icon, for the picker and the Dock,
 // is AppIconArt-<name> in Config/AppIcons.xcassets. All of them come from Design/make-app-icons.swift.
 
-/// An icon the app ships with. Pocket (MediaPocketPurple) is the app's own; the rest are alternates.
+/// The icon the app ships with: only the standard one. The old alternate
+/// designs are gone (no ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in
+/// project.yml, no App Icon picker in Settings).
 enum AppIconChoice: String, CaseIterable, Identifiable {
-    // Keep in step with ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES (project.yml) and Design/make-app-icons.swift.
-    case pocket = "MediaPocketPurple", grayPocket = "MediaPocketGray", layers = "MediaLayers", play = "PlayTriangle"
-    case seal = "SealMusic", shiba = "ShibaManga", cat = "CatCinema", friends = "AnimalTrio"
-    case panda = "Panda", arc = "Arc"
-    case classic = "Classic", aurora = "Aurora", porcelain = "Porcelain", obsidian = "Obsidian", azure = "Azure"
-    case daybreak = "Daybreak", iris = "Iris", lagoon = "Lagoon", roseQuartz = "RoseQuartz", citrus = "Citrus", cosmic = "Cosmic"
+    case pocket = "MediaPocketPurple"
 
     static let standard = AppIconChoice.pocket
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .pocket: L10n.text("Pocket")
-        case .grayPocket: L10n.text("Gray Pocket")
-        case .layers: L10n.text("Layers")
-        case .play: L10n.text("Glass Play")
-        case .seal: L10n.text("Seal")
-        case .shiba: L10n.text("Shiba")
-        case .cat: L10n.text("Cat")
-        case .friends: L10n.text("Friends")
-        case .panda: L10n.text("Panda")
-        case .arc: L10n.text("Arc")
-        case .classic: L10n.text("Classic")
-        case .aurora: L10n.text("Aurora")
-        case .porcelain: L10n.text("Porcelain")
-        case .obsidian: L10n.text("Obsidian")
-        case .azure: L10n.text("Azure")
-        case .daybreak: L10n.text("Daybreak")
-        case .iris: L10n.text("Iris")
-        case .lagoon: L10n.text("Lagoon")
-        case .roseQuartz: L10n.text("Rose Quartz")
-        case .citrus: L10n.text("Citrus")
-        case .cosmic: L10n.text("Cosmic")
+        case .pocket: "影匣Pro"
         }
     }
     /// The artwork's image set.

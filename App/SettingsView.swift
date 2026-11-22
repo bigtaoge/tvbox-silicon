@@ -521,7 +521,6 @@ struct FormSettingsView: View {
     #endif
     #if os(iOS)
     @State private var addingSubscription = false
-    @State private var showsFeedback = false
     @Environment(\.openURL) private var openURL
     @AppStorage(PhoneTabs.labelsKey) private var showsTabLabels = true
     @AppStorage(PhoneTabs.collapsesKey) private var collapsesTabBar = true
@@ -569,34 +568,6 @@ struct FormSettingsView: View {
         ScrollViewReader { proxy in
         Form { Group {
             heroSection
-
-            // Right under the app, so a problem or an idea is never more than one click away.
-            #if os(iOS)
-            // Two tiles side by side, so the way to the developer reads as a place, not two more rows.
-            Section {
-                HStack(spacing: 12) {
-                    Button { showsFeedback = true } label: {
-                        SettingsTile(symbol: "bubble.left.and.text.bubble.right.fill", tint: Brand.indigo, title: L10n.text("Send Feedback"),
-                                     subtitle: L10n.text("Report a problem or share an idea"))
-                    }
-                    Button { openURL(Support.telegram) } label: {
-                        SettingsTile(symbol: "paperplane.fill", tint: Brand.cyan, title: L10n.text("Telegram Group"),
-                                     subtitle: L10n.text("Chat with the developer and other users"), external: true)
-                    }
-                }
-                // Its own style per button, so each tile takes its own taps rather than the row's.
-                .buttonStyle(PressableStyle())
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-            #else
-            Section {
-                SettingsLinkRow(symbol: "bubble.left.and.text.bubble.right.fill", tint: Brand.indigo, title: L10n.text("Send Feedback"),
-                                subtitle: L10n.text("Report a problem or share an idea")) { FeedbackView() }
-                SettingsWebRow(symbol: "paperplane.fill", tint: Brand.cyan, title: L10n.text("Telegram Group"),
-                               subtitle: L10n.text("Chat with the developer and other users"), url: Support.telegram)
-            }
-            #endif
 
             Section {
                 ForEach(store.subscriptions) { entry in
@@ -786,10 +757,6 @@ struct FormSettingsView: View {
             // deeper, so this page stays a short list of places.
             Section {
                 FormLink(symbol: AppSection.home.icon, tint: Brand.cyan, title: L10n.text("Watch Now")) { WatchNowSettingsView() }
-                if AppIcons.isAvailable {
-                    FormLink(symbol: "paintpalette.fill", tint: .pink, title: L10n.text("App Icon"), value: AppIcons.shared.title) { AppIconSettingsView() }
-                        .accessibilityIdentifier("settings.appIcon")
-                }
                 FormLink(symbol: "swatchpalette.fill", tint: .purple, title: L10n.text("Color Theme"), value: ColorThemes.shared.current.title) {
                     ColorThemeSettingsView()
                 }
@@ -812,10 +779,6 @@ struct FormSettingsView: View {
             #else
             Section {
                 FormLink(symbol: AppSection.home.icon, tint: Brand.cyan, title: L10n.text("Watch Now")) { WatchNowSettingsView() }
-                if AppIcons.isAvailable {
-                    FormLink(symbol: "paintpalette.fill", tint: .pink, title: L10n.text("App Icon"), value: AppIcons.shared.title) { AppIconSettingsView() }
-                        .accessibilityIdentifier("settings.appIcon")
-                }
                 FormLink(symbol: "swatchpalette.fill", tint: .purple, title: L10n.text("Color Theme"), value: ColorThemes.shared.current.title) {
                     ColorThemeSettingsView()
                 }
@@ -1043,7 +1006,6 @@ struct FormSettingsView: View {
         }
         #if os(iOS)
         .sheet(isPresented: $addingSubscription) { AddSubscriptionSheet() }
-        .navigationDestination(isPresented: $showsFeedback) { FeedbackView() }
         #if DEBUG
         // `-qaAddSubscription 1` opens the sheet for screenshots.
         .onAppear { if UserDefaults.standard.bool(forKey: "qaAddSubscription") { addingSubscription = true } }
@@ -2092,11 +2054,6 @@ struct TVSettingsView: View {
             TVSettingsHero()
         } list: {
             if !updates.available.isEmpty { updateSection }
-            // First in the list, beside the app: a problem or an idea is one press away.
-            TVSettingsSection {
-                TVSettingsLink(title: L10n.text("Send Feedback")) { FeedbackView() }
-                TVSettingsLink(title: L10n.text("Telegram Group")) { TelegramGroupView() }
-            }
             subscriptionSection
             // Each kind in its own section rather than mixed in with the subscriptions (#1261).
             if store.extrasUnlocked || !store.livePlugins.isEmpty {
@@ -2127,7 +2084,6 @@ struct TVSettingsView: View {
             }
             TVSettingsSection {
                 TVSettingsLink(title: L10n.text("Watch Now")) { WatchNowSettingsView() }
-                TVSettingsLink(title: L10n.text("App Icon"), value: AppIcons.shared.title) { AppIconSettingsView() }
                 TVSettingsLink(title: L10n.text("Color Theme"), value: ColorThemes.shared.current.title) { ColorThemeSettingsView() }
             }
             TVSettingsSection(title: L10n.text("Playback"), footer: playbackFooter) {
