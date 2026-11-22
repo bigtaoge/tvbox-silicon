@@ -83,11 +83,19 @@ struct VerticalTVBoxHomeView: View {
                     .accessibilityIdentifier("vertical-home.source-picker")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    // Compact text buttons: small font, tight spacing, so all
-                    // four fit in the bar without iOS collapsing any of them
-                    // into the "..." overflow menu. "历史" is 历史记录
-                    // shortened to save two characters of width.
-                    HStack(spacing: 8) {
+                    // Compact text buttons: small font, so all four fit in
+                    // the bar without iOS collapsing any of them into the
+                    // "..." overflow menu. "历史" is 历史记录 shortened to
+                    // save two characters of width.
+                    //
+                    // Do NOT wrap these four buttons in an HStack: iOS 26
+                    // treats the HStack as one indivisible toolbar item and
+                    // shoves the whole thing into the "..." menu, where it
+                    // cannot display at all (that is what happened in the
+                    // previous build: all four buttons vanished and the "..."
+                    // would not open). A Group applies the font without
+                    // merging the buttons, so each stays its own item.
+                    Group {
                         Button { open(.live) } label: { Text(L10n.text("Live TV")) }
                         Button { open(.history) } label: { Text("历史") }
                         Button { open(.favorites) } label: { Text(L10n.text("Favorites")) }
