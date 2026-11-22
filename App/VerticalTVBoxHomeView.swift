@@ -67,24 +67,33 @@ struct VerticalTVBoxHomeView: View {
                         // A plain HStack, not a Label: iOS 26 renders toolbar
                         // Labels icon-only, so the selected source's name
                         // would disappear and only the chevron would show.
+                        // The name is capped: a long source name (e.g. with
+                        // an emoji and a "| 4K弹幕" tag) used to eat the whole
+                        // bar and push the action buttons into the "..."
+                        // overflow menu. It now truncates with "..." instead.
                         HStack(spacing: 4) {
                             Text(site.name)
+                                .frame(maxWidth: 120, alignment: .leading)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
                             Image(systemName: "chevron.down")
                         }
                         .font(.headline)
-                        .lineLimit(1)
                     }
                     .accessibilityIdentifier("vertical-home.source-picker")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    // Text buttons, not icons: the search magnifier duplicated
-                    // the big search field below, the live/history icons were
-                    // unclear, and the overflow "..." menu hid favorites and
-                    // settings. All four actions now show as text.
-                    Button { open(.live) } label: { Text(L10n.text("Live TV")) }
-                    Button { open(.history) } label: { Text("历史记录") }
-                    Button { open(.favorites) } label: { Text(L10n.text("Favorites")) }
-                    Button { open(.settings) } label: { Text(L10n.text("Settings")) }
+                    // Compact text buttons: small font, tight spacing, so all
+                    // four fit in the bar without iOS collapsing any of them
+                    // into the "..." overflow menu. "历史" is 历史记录
+                    // shortened to save two characters of width.
+                    HStack(spacing: 8) {
+                        Button { open(.live) } label: { Text(L10n.text("Live TV")) }
+                        Button { open(.history) } label: { Text("历史") }
+                        Button { open(.favorites) } label: { Text(L10n.text("Favorites")) }
+                        Button { open(.settings) } label: { Text(L10n.text("Settings")) }
+                    }
+                    .font(.subheadline)
                 }
             }
         }
