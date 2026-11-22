@@ -1059,29 +1059,75 @@ struct PosterCard: View {
     let poster: URL?
     let headers: [String: String]
     let remarks: String
+    /// A folder of a drive source (AList, 小雅: Video.isFolder, vod_tag "folder").
+    let isFolder: Bool
     init(video: Video) {
         name = video.name; poster = video.poster; headers = video.posterHeaders; remarks = video.remarks
+        isFolder = video.isFolder
     }
     init(recommendation: Recommendation) {
         name = recommendation.name; poster = recommendation.poster?.url
         headers = recommendation.poster?.headers ?? [:]; remarks = recommendation.remarks
+        isFolder = false
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Color.clear.aspectRatio(2.0 / 3.0, contentMode: .fit)
-                .overlay { PosterImage(url: poster, headers: headers) }
-                .posterClip(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .coverOverlay(alignment: .bottomLeading) {
-                    if !remarks.isEmpty {
-                        Text(remarks).font(.caption2.weight(.semibold)).lineLimit(1)
-                            .foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 3)
-                            .glassSurface(.regular.tint(.black.opacity(0.45)), in: Capsule()).padding(8)
+        if isFolder, poster == nil {
+            // Folders have no poster: show the folder tile instead of the dark
+            // placeholder (grey + tiny film icon + date remark), and no caption
+            // below the card — the name is on the tile itself.
+            FolderTile(name: name)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Color.clear.aspectRatio(2.0 / 3.0, contentMode: .fit)
+                    .overlay { PosterImage(url: poster, headers: headers) }
+                    .posterClip(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .coverOverlay(alignment: .bottomLeading) {
+                        if !remarks.isEmpty {
+                            Text(remarks).font(.caption2.weight(.semibold)).lineLimit(1)
+                                .foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 3)
+                                .glassSurface(.regular.tint(.black.opacity(0.45)), in: Capsule()).padding(8)
+                        }
                     }
-                }
-            // One line, cut with an ellipsis: a title that wrapped made its card taller than the rest of the row.
-            Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                .lineLimit(1).truncationMode(.tail).cardCaption()
+                // One line, cut with an ellipsis: a title that wrapped made its card taller than the rest of the row.
+                Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    .lineLimit(1).truncationMode(.tail).cardCaption()
+            }
         }
+    }
+}
+
+/// Cover for a folder with no poster: a soft gradient (one of six, picked by the
+/// folder name so each folder keeps its own colour), a big folder icon, and the
+/// folder name in white on the card. Same 2:3 ratio and corner radius as a poster.
+struct FolderTile: View {
+    let name: String
+    var body: some View {
+        Color.clear.aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .overlay {
+                LinearGradient(colors: Self.gradient(for: name), startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+            .overlay {
+                VStack(spacing: 12) {
+                    Image(systemName: "folder.fill").font(.system(size: 44)).foregroundStyle(.white.opacity(0.95))
+                    Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        .lineLimit(2).truncationMode(.tail).multilineTextAlignment(.center)
+                        .padding(.horizontal, 10)
+                }
+            }
+            .posterClip(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+    static func gradient(for name: String) -> [Color] {
+        // Six dark gradients, white text on top of all of them.
+        let palettes: [[Color]] = [
+            [Color(red: 0.23, green: 0.32, blue: 0.55), Color(red: 0.13, green: 0.18, blue: 0.35)],
+            [Color(red: 0.45, green: 0.36, blue: 0.72), Color(red: 0.28, green: 0.22, blue: 0.52)],
+            [Color(red: 0.16, green: 0.45, blue: 0.42), Color(red: 0.09, green: 0.28, blue: 0.30)],
+            [Color(red: 0.62, green: 0.42, blue: 0.18), Color(red: 0.42, green: 0.25, blue: 0.10)],
+            [Color(red: 0.62, green: 0.30, blue: 0.45), Color(red: 0.42, green: 0.18, blue: 0.32)],
+            [Color(red: 0.30, green: 0.50, blue: 0.22), Color(red: 0.18, green: 0.34, blue: 0.13)],
+        ]
+        let hash = name.unicodeScalars.reduce(0) { ($0 &* 31) &+ Int($1.value) }
+        return palettes[(hash & 0x7fffffff) % palettes.count]
     }
 }
 
