@@ -1351,17 +1351,10 @@ struct SiteView: View {
             }
         }
         .onDisappear { requestTask?.cancel(); browser.cancel() }
-        .toolbar {
-            // Handed the store: UIKit can size a bar item before SwiftUI gives it the page's environment, and these
-            // buttons read Store first thing (a TestFlight crash on iPhone).
-            if !showsBilibiliTVSpace {
-                Group {
-                    PinSourceButton(site: site, origin: origin)
-                    HideSourceButton(site: site, origin: origin)
-                }
-                .environment(store)
-            }
-        }
+        // No toolbar here: the pin/hide buttons used to sit in this page's
+        // top bar, but they duplicate Settings' source management, so the
+        // vertical home's own top bar (source picker + live/history/
+        // favorites/settings text buttons) is the only one on screen.
         .screenBackdrop()
         .onAppear {
             guard site.isBilibili, browser.loaded else { return }

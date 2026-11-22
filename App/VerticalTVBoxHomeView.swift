@@ -11,9 +11,9 @@ import TVCore
 /// that loads the next page at the bottom. Search, categories, pagination,
 /// detail and episode picking all stay exactly as `SiteView` does them.
 ///
-/// The old tab bar is gone on iOS (see `RootView`): search, live TV, history,
-/// favourites and settings are reached from this page's top bar instead, as
-/// pages pushed on this page's own stack.
+/// The old tab bar is gone on iOS (see `RootView`): live TV, history,
+/// favourites and settings are reached from this page's top bar as text
+/// buttons, search is the big field below, instead of the old tab bar.
 struct VerticalTVBoxHomeView: View {
     @Environment(Store.self) private var store
     @Environment(\.openRoute) private var openRoute
@@ -64,18 +64,27 @@ struct VerticalTVBoxHomeView: View {
                             }
                         }
                     } label: {
-                        Label(site.name, systemImage: "chevron.down")
-                            .font(.headline)
-                            .lineLimit(1)
+                        // A plain HStack, not a Label: iOS 26 renders toolbar
+                        // Labels icon-only, so the selected source's name
+                        // would disappear and only the chevron would show.
+                        HStack(spacing: 4) {
+                            Text(site.name)
+                            Image(systemName: "chevron.down")
+                        }
+                        .font(.headline)
+                        .lineLimit(1)
                     }
                     .accessibilityIdentifier("vertical-home.source-picker")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { open(.search) } label: { Label(L10n.text("Global Search"), systemImage: "magnifyingglass") }
-                    Button { open(.live) } label: { Label(L10n.text("Live TV"), systemImage: "dot.radiowaves.left.and.right") }
-                    Button { open(.history) } label: { Label(L10n.text("Playback History"), systemImage: "clock.arrow.circlepath") }
-                    Button { open(.favorites) } label: { Label(L10n.text("Favorites"), systemImage: "heart.fill") }
-                    Button { open(.settings) } label: { Label(L10n.text("Settings"), systemImage: "slider.horizontal.3") }
+                    // Text buttons, not icons: the search magnifier duplicated
+                    // the big search field below, the live/history icons were
+                    // unclear, and the overflow "..." menu hid favorites and
+                    // settings. All four actions now show as text.
+                    Button { open(.live) } label: { Text(L10n.text("Live TV")) }
+                    Button { open(.history) } label: { Text("历史记录") }
+                    Button { open(.favorites) } label: { Text(L10n.text("Favorites")) }
+                    Button { open(.settings) } label: { Text(L10n.text("Settings")) }
                 }
             }
         }
