@@ -19,9 +19,11 @@
 #      Commit and push it to main.
 #   3. On GitHub: Actions -> "Build unsigned iOS IPA" ->
 #      Run workflow -> Run workflow.
-#   4. When it finishes, download the Artifact named
-#      Yingxia-unsigned-ipa at the bottom of that run page and
-#      unzip it to get Yingxia-unsigned.ipa.
+#   4. When it finishes, download the IPA from the repo's
+#      Releases page (it is published there on every run), or
+#      from the Artifact named Yingxia-unsigned-ipa at the
+#      bottom of that run page (kept 7 days) and unzip it to
+#      get Yingxia-unsigned.ipa.
 #   5. The IPA is UNSIGNED and cannot be installed as-is.
 #      Sign it on your own computer with your own Apple account,
 #      e.g. with cider or Sideloadly:
@@ -63,7 +65,10 @@ on:
         required: true
 
 permissions:
-  contents: read
+  # write is needed so the run can publish the IPA to Releases
+  # (softprops/action-gh-release below). Nothing else in the
+  # workflow writes to the repo.
+  contents: write
 
 concurrency:
   group: build-ios-ipa
@@ -263,6 +268,20 @@ jobs:
           path: build/ci/Yingxia-unsigned.ipa
           if-no-files-found: error
           retention-days: 7
+
+      # Artifacts expire after 7 days and never show in Releases,
+      # so also publish the IPA as a (pre)release: one per run,
+      # tagged ios-build-<run number>, kept permanently.
+      - name: Publish IPA to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-build-${{ github.run_number }}
+          name: iOS build #${{ github.run_number }}
+          body: |
+            未签名 IPA，自行签名后安装。
+            Unsigned IPA from manual run #${{ github.run_number }}; sign it yourself before installing.
+          prerelease: true
+          files: build/ci/Yingxia-unsigned.ipa
 
       - name: Upload build logs on failure
         if: failure()
