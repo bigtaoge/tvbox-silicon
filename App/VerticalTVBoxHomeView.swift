@@ -12,8 +12,8 @@ import TVCore
 /// detail and episode picking all stay exactly as `SiteView` does them.
 ///
 /// The old tab bar is gone on iOS (see `RootView`): live TV, history,
-/// favourites and settings are reached from this page's top bar as text
-/// buttons, search is the big field below, instead of the old tab bar.
+/// favourites and settings are reached from this page's top bar as icons,
+/// search is the big field below, instead of the old tab bar.
 struct VerticalTVBoxHomeView: View {
     @Environment(Store.self) private var store
     @Environment(\.openRoute) private var openRoute
@@ -54,54 +54,69 @@ struct VerticalTVBoxHomeView: View {
         }
         .toolbar {
             if let site, !sites.isEmpty {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        ForEach(sites) { candidate in
-                            Button {
-                                sourceKey = candidate.key
-                            } label: {
-                                Label(candidate.name, systemImage: candidate.key == site.key ? "checkmark" : "play.rectangle.fill")
+                // The whole header is ONE principal (title-slot) item, not
+                // leading/trailing toolbar items: iOS 26 wraps leading and
+                // trailing toolbar items in glass pill containers, which is
+                // the "框" around the source picker and the buttons. The
+                // principal slot renders a custom view directly, with no
+                // capsule, so the header looks like the original mockup:
+                // source name on the left, four plain icons on the right.
+                //
+                // The navigation bar itself must stay visible: SiteView's
+                // big search field lives in the navigationBarDrawer, so
+                // hiding the bar would hide search too. A custom header row
+                // in the page body would sit below the search field, which
+                // is the wrong order — hence the principal slot, not a
+                // header row.
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 16) {
+                        Menu {
+                            ForEach(sites) { candidate in
+                                Button {
+                                    sourceKey = candidate.key
+                                } label: {
+                                    Label(candidate.name, systemImage: candidate.key == site.key ? "checkmark" : "play.rectangle.fill")
+                                }
                             }
+                        } label: {
+                            // The name is capped: a long source name (e.g. with
+                            // an emoji and a "| 4K弹幕" tag) used to eat the whole
+                            // bar and push the action buttons into the "..."
+                            // overflow menu. It now truncates with "..." instead.
+                            HStack(spacing: 4) {
+                                Text(site.name)
+                                    .frame(maxWidth: 120, alignment: .leading)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                Image(systemName: "chevron.down")
+                            }
+                            .font(.headline)
                         }
-                    } label: {
-                        // A plain HStack, not a Label: iOS 26 renders toolbar
-                        // Labels icon-only, so the selected source's name
-                        // would disappear and only the chevron would show.
-                        // The name is capped: a long source name (e.g. with
-                        // an emoji and a "| 4K弹幕" tag) used to eat the whole
-                        // bar and push the action buttons into the "..."
-                        // overflow menu. It now truncates with "..." instead.
-                        HStack(spacing: 4) {
-                            Text(site.name)
-                                .frame(maxWidth: 120, alignment: .leading)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                            Image(systemName: "chevron.down")
+                        .accessibilityIdentifier("vertical-home.source-picker")
+                        Spacer()
+                        // Plain icons, as in the original mockup: TV for live,
+                        // clock for history, heart for favourites, gear for
+                        // settings. Icon-only buttons need accessibility labels.
+                        Group {
+                            Button { open(.live) } label: {
+                                Image(systemName: "tv")
+                            }
+                            .accessibilityLabel(L10n.text("Live TV"))
+                            Button { open(.history) } label: {
+                                Image(systemName: "clock")
+                            }
+                            .accessibilityLabel(L10n.text("Playback History"))
+                            Button { open(.favorites) } label: {
+                                Image(systemName: "heart")
+                            }
+                            .accessibilityLabel(L10n.text("Favorites"))
+                            Button { open(.settings) } label: {
+                                Image(systemName: "gear")
+                            }
+                            .accessibilityLabel(L10n.text("Settings"))
                         }
-                        .font(.headline)
+                        .font(.title3)
                     }
-                    .accessibilityIdentifier("vertical-home.source-picker")
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    // Compact text buttons: small font, so all four fit in
-                    // the bar without iOS collapsing any of them into the
-                    // "..." overflow menu. "历史" is 历史记录 shortened to
-                    // save two characters of width.
-                    //
-                    // Do NOT wrap these four buttons in an HStack: iOS 26
-                    // treats the HStack as one indivisible toolbar item and
-                    // shoves the whole thing into the "..." menu, where it
-                    // cannot display at all (that is what happened in the
-                    // previous build: all four buttons vanished and the "..."
-                    // would not open). A Group applies the font without
-                    // merging the buttons, so each stays its own item.
-                    Group {
-                        Button { open(.live) } label: { Text(L10n.text("Live TV")) }
-                        Button { open(.history) } label: { Text("历史") }
-                        Button { open(.favorites) } label: { Text(L10n.text("Favorites")) }
-                        Button { open(.settings) } label: { Text(L10n.text("Settings")) }
-                    }
-                    .font(.subheadline)
                 }
             }
         }
