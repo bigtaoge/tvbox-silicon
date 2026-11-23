@@ -562,6 +562,10 @@ struct FormSettingsView: View {
     private var version: String? {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String).flatMap { $0.isEmpty ? nil : L10n.text("Version %@", $0) }
     }
+    /// The bare version number, as the 关于影匣Pro row shows it on the right.
+    private var versionNumber: String? {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
 
     var body: some View {
         @Bindable var store = store
@@ -887,8 +891,6 @@ struct FormSettingsView: View {
                 #endif
             }
 
-            if store.extrasUnlocked { ContributorsSection() }
-
             #if os(iOS)
             // As in the Settings app: one-line rows with their state on the right, and the notes under
             // each group instead of a second line and a small link inside the row.
@@ -921,7 +923,7 @@ struct FormSettingsView: View {
                     }
                     .tint(.primary)
                 }
-                FormLink(symbol: "doc.plaintext.fill", tint: .gray, title: L10n.text("Open Source Licenses")) { LicensesView() }
+                FormLink(symbol: "info.circle.fill", tint: .blue, title: "关于影匣Pro", value: versionNumber) { AboutYingxiaProView() }
                     .id("settings.end")
             } header: {
                 Text(L10n.text("About"))
@@ -964,7 +966,7 @@ struct FormSettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }.formRowButton()
                 }
-                FormLink(symbol: "doc.plaintext.fill", tint: .gray, title: L10n.text("Open Source Licenses")) { LicensesView() }
+                FormLink(symbol: "info.circle.fill", tint: .blue, title: "关于影匣Pro", value: versionNumber) { AboutYingxiaProView() }
                     .id("settings.end")
             } header: {
                 Text(L10n.text("About"))
@@ -1013,7 +1015,6 @@ struct FormSettingsView: View {
         #endif
         // Refreshed whenever Settings reappears, so a sign-in on the account page shows here.
         .onAppear { bilibiliSummary = BilibiliAccount.load().summary; douyinSummary = DouyinAccount.load().summary; sourceSignIns = SourceSignIn.all.map { ($0, SourceAccount.load($0.id).summary) }; cloudSummary = CloudProvider.summary() }
-        .task(id: store.extrasUnlocked) { if store.extrasUnlocked { await ContributorList.shared.check() } }
     }
 
     @ViewBuilder private var heroSection: some View {
@@ -1645,6 +1646,46 @@ private struct PlayURLView: View {
 }
 #endif
 
+/// 关于影匣Pro：版本、免费声明、致谢与原项目地址；开源许可也在这一页里。
+struct AboutYingxiaProView: View {
+    /// 当前版本，读 App 自身的版本号和构建号，如 1.8.26 (64)。
+    private var versionText: String {
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        if short.isEmpty { return build }
+        return build.isEmpty ? short : "\(short) (\(build))"
+    }
+    private var projectURL: URL { URL(string: "https://github.com/jo32/tvbox-silicon")! }
+    var body: some View {
+        SettingsPage(title: "关于影匣Pro", symbol: "info.circle") {
+            Section {
+                VStack(spacing: 0) {
+                    AppMark(size: 96)
+                        .background { AppMark(size: 96).blur(radius: 22).opacity(0.7).accessibilityHidden(true) }
+                        .padding(.top, 24).padding(.bottom, 14)
+                    Text("影匣Pro").font(.system(size: 28, weight: .bold, design: .rounded))
+                    Text("版本 \(versionText)").font(.footnote.weight(.medium)).foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                Text("本软件完全免费")
+            }
+            Section {
+                Text("本项目基于 jo32 大佬的 tvbox-silicon 项目修改，再次致谢！")
+                SettingsWebRow(symbol: "link", tint: .blue, title: "原项目地址", subtitle: "github.com/jo32/tvbox-silicon", url: projectURL)
+            } header: {
+                Text("致谢")
+            }
+            Section {
+                FormLink(symbol: "doc.plaintext.fill", tint: .gray, title: L10n.text("Open Source Licenses")) { LicensesView() }
+            }
+        }
+    }
+}
+
 struct LicensesView: View {
     private var notices: String {
         (Bundle.main.url(forResource: "ThirdPartyNotices", withExtension: "txt").flatMap { try? String(contentsOf: $0, encoding: .utf8) }) ?? "DexLoom · MIT License"
@@ -2122,16 +2163,14 @@ struct TVSettingsView: View {
                 TVSettingsToggle(title: L10n.text("Look Up Titles on TMDB"), isOn: $looksUpTMDB)
             }
             if updates.available.isEmpty, Updates.channel != .none { updateSection }
-            if store.extrasUnlocked { ContributorsSection() }
             TVSettingsSection(title: L10n.text("About"),
                               footer: store.extrasUnlocked ? L10n.text("Supports TVBox JSON subscriptions, M3U / TXT live playlists, and standard type 1 / type 4 JSON APIs. Media formats depend on the device. Local JavaScript and Python plugins are experimental on Mac, and JAR plugins are experimental on every platform; compatibility varies by source.") : nil) {
-                TVSettingsLink(title: L10n.text("Open Source Licenses")) { LicensesView() }
+                TVSettingsLink(title: "关于影匣Pro") { AboutYingxiaProView() }
             }
         }
         .tabTitle(L10n.text("Settings"))
         // Refreshed whenever Settings reappears, so a sign-in on the account page shows here.
         .onAppear { bilibiliSummary = BilibiliAccount.load().summary; douyinSummary = DouyinAccount.load().summary; sourceSignIns = SourceSignIn.all.map { ($0, SourceAccount.load($0.id).summary) }; cloudSummary = CloudProvider.summary() }
-        .task(id: store.extrasUnlocked) { if store.extrasUnlocked { await ContributorList.shared.check() } }
     }
 
     private var playbackFooter: String {
@@ -2561,113 +2600,6 @@ private struct TVPlayURLPage: View {
                     catch { store.error = error.localizedDescription }
                 }
                 .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-    }
-}
-#endif
-
-// MARK: Contributors
-
-/// The last 30 days' contributors that Settings lists, kept between launches and asked for at most every six hours.
-@MainActor @Observable final class ContributorList {
-    static let shared = ContributorList()
-    /// At most this many rows; the list is ranked, so the rest have the fewest commits.
-    static let shown = 20
-    private(set) var people: [Contributor]
-    private var checking = false
-    private let defaults: UserDefaults
-    private static let interval: TimeInterval = 6 * 60 * 60
-    private enum Keys { static let people = "contributors.people", checked = "contributors.checked" }
-
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        people = defaults.data(forKey: Keys.people).flatMap { try? JSONDecoder().decode([Contributor].self, from: $0) } ?? []
-    }
-
-    /// A failed check keeps the last list and tries again the next time Settings opens.
-    func check() async {
-        guard !checking else { return }
-        if let checked = defaults.object(forKey: Keys.checked) as? Date, Date().timeIntervalSince(checked) < Self.interval { return }
-        checking = true
-        defer { checking = false }
-        // Its own task: Settings restarts its task when it unlocks, and that mustn't cancel the request halfway.
-        let fetch = Task { try await Contributors.fetch() }
-        do {
-            people = try await fetch.value.contributors
-            defaults.set(try? JSONEncoder().encode(people), forKey: Keys.people)
-            defaults.set(Date(), forKey: Keys.checked)
-        } catch {
-            Diagnostics.shared.record(.warning, "contributors", "Contributor list check failed: \(error.localizedDescription)")
-        }
-    }
-
-    static func commits(_ count: Int) -> String { count == 1 ? L10n.text("1 commit") : L10n.text("%lld commits", count) }
-}
-
-/// A contributor's GitHub picture in a circle, or their initial while it loads or when it can't.
-private struct ContributorAvatar: View {
-    let person: Contributor
-    let size: CGFloat
-    var body: some View {
-        AsyncImage(url: person.avatar(points: Int(size.rounded(.up)))) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Text(person.login.prefix(1).uppercased()).font(.system(size: size * 0.45, weight: .semibold)).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
-        }
-        .frame(width: size, height: size).clipShape(Circle())
-        .accessibilityHidden(true)
-    }
-}
-
-#if os(tvOS)
-/// Everyone with commits in the last 30 days, most first. Apple TV can't open their GitHub pages, so the rows only show them.
-struct ContributorsSection: View {
-    private var list: ContributorList { .shared }
-    var body: some View {
-        if !list.people.isEmpty {
-            TVSettingsSection(title: L10n.text("Contributors"), footer: L10n.text("Ranked by commits in the last 30 days.")) {
-                ForEach(list.people.prefix(ContributorList.shown)) { person in
-                    HStack(spacing: 18) {
-                        ContributorAvatar(person: person, size: 52)
-                        Text(person.login).font(.system(size: 29, weight: .medium)).lineLimit(1)
-                        Spacer(minLength: 32)
-                        Text(ContributorList.commits(person.commits)).font(.system(size: 27)).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    // The insets of a `glassRow()`, so these line up with the rows that can be selected.
-                    .padding(.horizontal, 28).padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-                    .accessibilityElement(children: .combine)
-                }
-            }
-        }
-    }
-}
-#else
-/// Everyone with commits in the last 30 days, most first; a row opens the person's GitHub page.
-struct ContributorsSection: View {
-    @Environment(\.openURL) private var openURL
-    private var list: ContributorList { .shared }
-    var body: some View {
-        if !list.people.isEmpty {
-            Section {
-                ForEach(list.people.prefix(ContributorList.shown)) { person in
-                    Button { if let profile = person.profile { openURL(profile) } } label: {
-                        HStack(spacing: 8) {
-                            Label { Text(person.login).lineLimit(1) } icon: { ContributorAvatar(person: person, size: FormMetrics.icon) }
-                                .foregroundStyle(.primary).layoutPriority(1)
-                            Spacer(minLength: 0)
-                            Text(ContributorList.commits(person.commits)).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                    }
-                    .tint(.primary)
-                    .formRowButton()
-                }
-            } header: {
-                Text(L10n.text("Contributors"))
-            } footer: {
-                Text(L10n.text("Ranked by commits in the last 30 days."))
             }
         }
     }
