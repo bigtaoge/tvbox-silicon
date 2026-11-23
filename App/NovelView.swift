@@ -52,6 +52,9 @@ struct NovelView: View {
         #if !os(tvOS)
         .toolbar {
             ToolbarItemGroup {
+                // Back to Settings to switch the home module, from any module.
+                RouteLink { SettingsView() } label: { Image(systemName: "gear") }
+                    .accessibilityLabel(L10n.text("Settings"))
                 if !store.searchable.isEmpty {
                     RouteLink { NovelSearchView() } label: { Image(systemName: "magnifyingglass") }
                         .accessibilityLabel(L10n.text("Search"))

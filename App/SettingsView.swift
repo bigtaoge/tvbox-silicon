@@ -1019,42 +1019,10 @@ struct FormSettingsView: View {
 
     @ViewBuilder private var heroSection: some View {
         #if os(iOS)
-        // The app on the page's own canvas, not in a card: its icon lit by a glow of itself, the name large, and the
-        // version with the update state in one glass chip. A waiting release is the one prominent button.
-        Section {
-            VStack(spacing: 0) {
-                // The row clips what it draws, so the glow stays small enough to fade out inside it.
-                AppMark(size: 96)
-                    .background { AppMark(size: 96).blur(radius: 22).opacity(0.7).accessibilityHidden(true) }
-                    .padding(.top, 36).padding(.bottom, 18)
-                Text(L10n.text("Yingxia")).font(.system(size: 32, weight: .bold, design: .rounded))
-                HStack(spacing: 6) {
-                    if let version { Text(version) }
-                    if updates.availableTitle == nil, Updates.channel != .none, updates.lastChecked != nil {
-                        Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
-                        Text(L10n.text("Up to Date"))
-                    }
-                }
-                .font(.footnote.weight(.medium)).foregroundStyle(.secondary)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .glassSurface(.regular, in: Capsule())
-                .padding(.top, 10)
-                if let title = updates.availableTitle {
-                    Button(action: updates.show) {
-                        Label(title, systemImage: "gift.fill")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(Brand.onAccent)
-                            .padding(.horizontal, 18).padding(.vertical, 10)
-                            .background(Brand.accent, in: Capsule())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .padding(.top, 14)
-                }
-            }
-            .lineLimit(1)
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, 10)
-            .listRowBackground(Color.clear)
-        }
+        // The four modules as the page's head, instead of the app's icon and name:
+        // the chosen one is the home screen. A green dot means the module has
+        // sources, a red dot means none yet. The version moved to 关于影匣Pro.
+        HomeModuleSwitcher()
         #else
         // The app leads, like the account card in Settings; a waiting release sits right under it.
         Section {
@@ -1682,6 +1650,93 @@ struct AboutYingxiaProView: View {
             Section {
                 FormLink(symbol: "doc.plaintext.fill", tint: .gray, title: L10n.text("Open Source Licenses")) { LicensesView() }
             }
+        }
+    }
+}
+
+/// Settings › 主界面：the four modules as tiles. The selected one is the home
+/// screen; a green dot means the module has sources, a red dot means none yet.
+/// Tapping a tile switches immediately — Back from Settings shows the new home.
+private struct HomeModuleSwitcher: View {
+    @Environment(Store.self) private var store
+    @AppStorage(HomeModule.storageKey) private var moduleRaw = HomeModule.filmTV.rawValue
+    @State private var novelStore = NovelStore.shared
+    @State private var mangaStore = MangaStore.shared
+
+    private var selected: HomeModule { HomeModule(rawValue: moduleRaw) ?? .filmTV }
+
+    private func status(for module: HomeModule) -> (hasSources: Bool, text: String) {
+        switch module {
+        case .filmTV:
+            var sites = 0, lives = 0
+            for entry in store.subscriptions where entry.enabled {
+                if let doc = store.documents[entry.address] { sites += doc.sites.count; lives += doc.lives.count }
+            }
+            if sites > 0 { return (true, "\(sites) 个来源") }
+            if lives > 0 { return (true, "\(lives) 个直播列表") }
+            return (false, "未添加源")
+        case .music:
+            let count = store.lxSources.count
+            return count > 0 ? (true, "已添加 · \(count) 个音源") : (false, "未添加源")
+        case .novel:
+            let count = novelStore.enabledSources.count
+            return count > 0 ? (true, "\(count) 个书源") : (false, "未添加源")
+        case .manga:
+            let count = mangaStore.sources.count
+            return count > 0 ? (true, "\(count) 个漫画源") : (false, "未添加源")
+        }
+    }
+
+    var body: some View {
+        Section {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                ForEach(HomeModule.allCases, id: \.self) { module in
+                    let status = status(for: module)
+                    let isSelected = module == selected
+                    Button { moduleRaw = module.rawValue } label: {
+                        VStack(spacing: 8) {
+                            Image(systemName: module.icon)
+                                .font(.system(size: 28))
+                                .foregroundStyle(isSelected ? Brand.accent : .secondary)
+                            Text(module.title)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(status.hasSources ? Color.green : Color.red)
+                                    .frame(width: 8, height: 8)
+                                Text(status.text)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isSelected ? Brand.accent.opacity(0.12) : Color.primary.opacity(0.05))
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(isSelected ? Brand.accent : Color.clear, lineWidth: 1.5)
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            if isSelected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(Brand.accent)
+                                    .padding(6)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(module.title)，\(status.text)\(isSelected ? "，当前主界面" : "")")
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("主界面")
+        } footer: {
+            Text("选中哪个，主界面就是哪个模块；随时回这里再换。")
         }
     }
 }

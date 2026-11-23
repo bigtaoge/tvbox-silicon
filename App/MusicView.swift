@@ -103,8 +103,13 @@ struct MusicView: View {
         .tabTitle(L10n.text("Music"))
         #if !os(tvOS)
         .toolbar {
-            Button { showsSettings = true } label: { Image(systemName: "slider.horizontal.3") }
-                .accessibilityLabel(L10n.text("Music Settings"))
+            ToolbarItemGroup {
+                // Back to Settings to switch the home module, from any module.
+                RouteLink { SettingsView() } label: { Image(systemName: "gear") }
+                    .accessibilityLabel(L10n.text("Settings"))
+                Button { showsSettings = true } label: { Image(systemName: "slider.horizontal.3") }
+                    .accessibilityLabel(L10n.text("Music Settings"))
+            }
         }
         #endif
         #if os(tvOS)

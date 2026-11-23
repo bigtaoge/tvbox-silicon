@@ -47,6 +47,8 @@ struct RootView: View {
     @State private var moreSection: AppSection = .settings
     #if os(iOS)
     @AppStorage(PhoneTabs.storageKey) private var storedTabs = ""
+    /// The home module, chosen in Settings › 主界面. Saved, so the app reopens on it.
+    @AppStorage(HomeModule.storageKey) private var homeModuleRaw = HomeModule.filmTV.rawValue
     /// The size classes the tab set is built for, a moment behind the window's: see `followsSizeClasses`.
     @State private var tabSizeClasses: TabSizeClasses?
     #endif
@@ -142,10 +144,13 @@ struct RootView: View {
             }
             #else
             #if os(iOS)
-            // Step 2 of the vertical TVBox rebuild: a single vertical page instead
-            // of the tab bar. Search, live TV, history, favourites and settings
-            // live in that page's top bar; tvOS keeps the tab bar for now.
-            RouteStack { VerticalTVBoxHomeView() }
+            // The home module, chosen in Settings › 主界面: the vertical film/TV
+            // page, or the music, novel or manga page. The tab bar is gone; each
+            // module reaches Settings from its own top bar to switch again.
+            // tvOS keeps the tab bar for now.
+            RouteStack { homeModuleView }
+                // The full player opens over any module, as the tab bar's sheet did.
+                .sheet(isPresented: Binding(get: { store.music.presentsPlayer }, set: { store.music.presentsPlayer = $0 })) { MusicNowPlayingScreen() }
             #else
             platformTabs
             #endif
@@ -348,6 +353,21 @@ struct RootView: View {
     #endif
     #endif
 
+
+    #if os(iOS)
+    /// The home screen for the chosen module: the vertical film/TV page, or the
+    /// music, novel or manga page. Settings is pushed on top of it from the
+    /// module's own top bar, so switching modules behind Settings is safe: the
+    /// stack keeps Settings until Back.
+    @ViewBuilder private var homeModuleView: some View {
+        switch HomeModule(rawValue: homeModuleRaw) ?? .filmTV {
+        case .filmTV: VerticalTVBoxHomeView()
+        case .music: SectionPage(section: .music)
+        case .novel: SectionPage(section: .novels)
+        case .manga: SectionPage(section: .manga)
+        }
+    }
+    #endif
 
     @ViewBuilder private func content(_ section: AppSection) -> some View {
         #if DEBUG
