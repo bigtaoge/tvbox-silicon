@@ -1,13 +1,13 @@
-# 【中文说明】映匣 Yingxia - 用 GitHub Actions 打包未签名 IPA
+# 【中文说明】影匣Pro - 用 GitHub Actions 打包未签名 IPA
 # 用法：Fork 原仓库（建议 Public）-> 把本文件放进 fork 的
 # .github/workflows/build-ios-ipa.yml -> commit 并 push ->
 # GitHub 页面 Actions -> Build unsigned iOS IPA -> Run workflow ->
-# 跑完在页面底部 Artifacts 下载 Yingxia-unsigned-ipa，解压得 IPA。
+# 跑完在页面底部 Artifacts 下载 YingxiaPro-unsigned-ipa，解压得 IPA。
 # IPA 未签名不能直装，用 cider / Sideloadly 以你自己的 Apple
 # 账号签名后再装（免费账号 7 天，cider refresh run 续签）。
 # 第一次跑很久（要现编嵌入式 JVM），下面英文注释是同一份说明。
 # =====================================================================
-# Yingxia (jo32/tvbox-silicon) - GitHub Actions: build unsigned iOS IPA
+# 影匣Pro (bigtaoge/tvbox-silicon) - GitHub Actions: build unsigned iOS IPA
 # =====================================================================
 # How to use (no need to install Xcode/JDK/Maven on your own Mac):
 #   1. Fork the upstream repo to your own GitHub account.
@@ -21,13 +21,13 @@
 #      Run workflow -> Run workflow.
 #   4. When it finishes, download the IPA from the repo's
 #      Releases page (it is published there on every run), or
-#      from the Artifact named Yingxia-unsigned-ipa at the
+#      from the Artifact named YingxiaPro-unsigned-ipa at the
 #      bottom of that run page (kept 7 days) and unzip it to
-#      get Yingxia-unsigned.ipa.
+#      get YingxiaPro-unsigned.ipa.
 #   5. The IPA is UNSIGNED and cannot be installed as-is.
 #      Sign it on your own computer with your own Apple account,
 #      e.g. with cider or Sideloadly:
-#          cider sign Yingxia-unsigned.ipa --apple-id --install --refresh
+#          cider sign YingxiaPro-unsigned.ipa --apple-id --install --refresh
 #      A free account signing lasts 7 days; renew with
 #      "cider refresh run" and do not delete the app first,
 #      or subscriptions / favorites / history will be lost.
@@ -253,19 +253,19 @@ jobs:
       - name: Package unsigned IPA
         run: |
           APP="build/ci/TVBox-iOS.xcarchive/Products/Applications/TVBox-iOS.app"
-          rm -rf build/ci/Payload build/ci/Yingxia-unsigned.ipa
+          rm -rf build/ci/Payload build/ci/YingxiaPro-unsigned.ipa
           mkdir -p build/ci/Payload
           cp -R "$APP" build/ci/Payload/
           cd build/ci
-          zip -qry Yingxia-unsigned.ipa Payload
-          ls -lh Yingxia-unsigned.ipa
-          unzip -l Yingxia-unsigned.ipa | head -20
+          zip -qry YingxiaPro-unsigned.ipa Payload
+          ls -lh YingxiaPro-unsigned.ipa
+          unzip -l YingxiaPro-unsigned.ipa | head -20
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Yingxia-unsigned-ipa
-          path: build/ci/Yingxia-unsigned.ipa
+          name: YingxiaPro-unsigned-ipa
+          path: build/ci/YingxiaPro-unsigned.ipa
           if-no-files-found: error
           retention-days: 7
 
@@ -281,7 +281,7 @@ jobs:
             未签名 IPA，自行签名后安装。
             Unsigned IPA from manual run #${{ github.run_number }}; sign it yourself before installing.
           prerelease: true
-          files: build/ci/Yingxia-unsigned.ipa
+          files: build/ci/YingxiaPro-unsigned.ipa
 
       - name: Upload build logs on failure
         if: failure()
