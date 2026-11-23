@@ -1347,7 +1347,7 @@ struct SiteView: View {
                     query = value
                     if value.isEmpty && !browser.query.isEmpty { startRequest { await home() } }
                 }), prompt: L10n.text("Search videos"), endsWhenIdle: true)
-                .onSubmit(of: .search) { startRequest { await search() } }
+                .onSubmit(of: .search) { searchGlobally() }
             }
         }
         .onDisappear { requestTask?.cancel(); browser.cancel() }
@@ -1436,6 +1436,21 @@ struct SiteView: View {
         }
     }
     private func home() async { await browser.load(folder.map { .list(category: $0.id, query: "", page: 1) } ?? .home, client: client) }
+    /// The home search box searches every source, not just this one: it starts the
+    /// global search and opens its page, where results can be filtered per source.
+    /// With no subscription loaded there is nothing to search globally, so it
+    /// falls back to searching this source, as before.
+    private func searchGlobally() {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        guard let config = store.subscription else { startRequest { await search() }; return }
+        store.searchModel.search(text, config: config) { [store] site in
+            store.hiddenSources.contains(site, origin: config.origin)
+        }
+        openRoute?(Route { AnyView(GlobalSearchView()) })
+        query = ""
+    }
+
     private func search() async {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { await home() }
