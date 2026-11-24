@@ -55,6 +55,19 @@ public struct MusicQueue: Codable, Equatable, Sendable {
     /// Puts `new` at the end.
     public mutating func append(_ new: [MusicTrack]) { tracks.append(contentsOf: new) }
 
+    /// Takes out the song at `position`, except the one playing: the queue page removes only what
+    /// comes after it, so the song playing never leaves under itself.
+    @discardableResult public mutating func remove(at position: Int) -> MusicTrack? {
+        guard position > index, tracks.indices.contains(position) else { return nil }
+        return tracks.remove(at: position)
+    }
+
+    /// Drops everything after the song playing.
+    public mutating func removeUpcoming() {
+        guard !tracks.isEmpty else { return }
+        tracks = Array(tracks[...index])
+    }
+
     /// After a song that would not play, move on, unless several in a row failed: then the
     /// channels are down, and skipping on would only spend requests.
     public static let failuresBeforeStopping = 3
