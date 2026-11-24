@@ -232,6 +232,9 @@ final class HLSRemuxSession: SegmentedStream, @unchecked Sendable {
         configuration.timeoutIntervalForRequest = 30
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
+        // Four gated live segments, each split over four range requests (patch 16): let the ranges
+        // actually run side by side instead of queueing behind the system's per-host limit.
+        configuration.httpMaximumConnectionsPerHost = 16
         return URLSession(configuration: configuration)
     }()
     static let kept = 6
@@ -243,6 +246,12 @@ final class HLSRemuxSession: SegmentedStream, @unchecked Sendable {
     static let liveBehind = 3
     static let liveLongest = 30
     static let liveFetches = 4
+    /// A live segment's download is split over this many parallel HTTP range requests (patch 16): the
+    /// server throttles each connection, so one segment over one connection is the whole wait.
+    static let liveRanges = 4
+    /// Idle timeout of one range request, in seconds (the session's own is 30): a stalled range falls
+    /// back to one plain download instead of holding the segment.
+    static let liveRangeTimeout: TimeInterval = 20
 
     let id = UUID().uuidString.lowercased()
     /// The playlist has no end: it is read again as AVPlayer reloads the repackaged one (#361).
@@ -523,7 +532,9 @@ final class HLSRemuxSession: SegmentedStream, @unchecked Sendable {
         defer { if gated { gate.leave() } }
         try Task.checkCancellation()
         let began = Date()
-        var data = try await fetch(segment.url)
+        // Live: split the segment over parallel range requests (patch 16). VOD keeps one plain download:
+        // a file's segments are read once and cached, and a ranged retry there buys nothing.
+        var data = try await (live ? fetchRanged(segment.url) : fetch(segment.url))
         Diagnostics.shared.record(.debug, "remux", "hls fetched sequence=\(segment.sequence) bytes=\(data.count) seconds=\(String(format: "%.1f", segment.duration)) ms=\(Int(Date().timeIntervalSince(began) * 1000))")
         if let key = segment.key {
             data = try HLSRemux.decrypt(data, key: try await keyData(key.url), iv: key.iv ?? HLSRemux.iv(segment.sequence))
@@ -553,6 +564,84 @@ final class HLSRemuxSession: SegmentedStream, @unchecked Sendable {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 200
         guard (200..<300).contains(status) else { throw TVError.http(status) }
         return data
+    }
+
+    /// A live segment's bytes over up to `liveRanges` parallel HTTP range requests (patch 16). The server
+    /// throttles each connection, so one 10 MB segment over one connection is most of the wait before the
+    /// first frame; four ranges move it roughly four times as fast. Any anomaly — no range support, a short
+    /// or wrong-sized part, a failed part — falls back to one plain download, exactly as before, so a server
+    /// that ignores ranges behaves no worse than it does today. Cancellation is never swallowed: it rethrows
+    /// instead of falling back.
+    private func fetchRanged(_ url: URL) async throws -> Data {
+        do { return try await fetchRangedOrThrow(url) }
+        catch is CancellationError { throw }
+        catch { return try await fetch(url) }
+    }
+
+    /// The ranged download itself: throws on any anomaly so the caller can fall back to one plain download.
+    private func fetchRangedOrThrow(_ url: URL) async throws -> Data {
+        try Task.checkCancellation()
+        let firstLength = 512 * 1024
+        var firstRequest = URLRequest(url: url, timeoutInterval: Self.liveRangeTimeout)
+        headers.forEach { firstRequest.setValue($1, forHTTPHeaderField: $0) }
+        firstRequest.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        firstRequest.setValue("bytes=0-\(firstLength - 1)", forHTTPHeaderField: "Range")
+        let (firstData, firstResponse) = try await network.data(for: firstRequest)
+        if (firstResponse as? HTTPURLResponse)?.statusCode == 200 {
+            // The server ignored the range and sent the whole segment: that is the segment.
+            return firstData
+        }
+        guard let total = rangeTotal(firstResponse), total > 0 else {
+            throw TVError.unsupported("no range support")
+        }
+        guard firstData.count == min(firstLength, total) else {
+            throw TVError.unsupported("short first range")
+        }
+        guard total > firstLength else { return firstData }
+        let rest = total - firstLength
+        let partCount = min(Self.liveRanges - 1, (rest + firstLength - 1) / firstLength)
+        let partSize = (rest + partCount - 1) / partCount
+        var ranges: [(start: Int, end: Int)] = []
+        for index in 0..<partCount {
+            let start = firstLength + index * partSize
+            guard start < total else { break }
+            ranges.append((start: start, end: min(start + partSize, total) - 1))
+        }
+        var chunks = [Int: Data]()
+        try await withThrowingTaskGroup(of: (Int, Data).self) { group in
+            for (index, range) in ranges.enumerated() {
+                group.addTask { [self] in
+                    var request = URLRequest(url: url, timeoutInterval: Self.liveRangeTimeout)
+                    self.headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+                    request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+                    request.setValue("bytes=\(range.start)-\(range.end)", forHTTPHeaderField: "Range")
+                    let (data, response) = try await self.network.data(for: request)
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard status == 206, data.count == range.end - range.start + 1 else {
+                        throw TVError.unsupported("bad range \(range.start)-\(range.end)")
+                    }
+                    return (index, data)
+                }
+            }
+            for try await (index, data) in group { chunks[index] = data }
+        }
+        var result = Data(capacity: total)
+        result.append(firstData)
+        for index in ranges.indices {
+            guard let data = chunks[index] else { throw TVError.unsupported("missing range") }
+            result.append(data)
+        }
+        return result
+    }
+
+    /// A range response's total length, from its `Content-Range` (`bytes 0-524287/10485760`): nil when the
+    /// server gives no usable total, so the caller falls back to one plain download.
+    private func rangeTotal(_ response: URLResponse?) -> Int? {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 206,
+              let contentRange = http.value(forHTTPHeaderField: "Content-Range"),
+              let totalText = contentRange.split(separator: "/").last,
+              let total = Int(totalText), total > 0 else { return nil }
+        return total
     }
 }
 
