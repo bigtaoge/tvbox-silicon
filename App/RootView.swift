@@ -37,7 +37,6 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Updates.self) private var updates
-    @Environment(Announcements.self) private var announcements
     @Environment(\.horizontalSizeClass) private var sizeClass
     #if os(iOS)
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -96,14 +95,6 @@ struct RootView: View {
         return sections.count > Self.topBarSlots ? Array(sections.dropFirst(Self.topBarSlots - 1)) : []
     }
     #endif
-    /// A message from the website waits while a video plays or another alert or sheet is up.
-    private var messageWaits: Bool {
-        var busy = store.playing != nil || store.error != nil || updates.sheet != nil || updates.message != nil || PluginSignIn.shared.prompt != nil
-        #if os(tvOS)
-        busy = busy || store.music.presentsPlayer
-        #endif
-        return busy
-    }
     var body: some View {
         @Bindable var store = store
         Group {
@@ -176,7 +167,6 @@ struct RootView: View {
         .overlay { PlayOnIncoming().animation(.spring(duration: 0.4), value: PlayOnController.shared.incoming?.title) }
         #endif
         .updatePresentation(updates, playing: store.playing != nil)
-        .announcementPresentation(announcements, blocked: messageWaits)
         .alert(L10n.text("Unable to Complete"), isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button(L10n.text("OK"), role: .cancel) { store.error = nil }
         } message: { Text(store.error ?? "") }
