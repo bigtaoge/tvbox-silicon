@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// One programme in a live channel's guide (#802).
 public struct Programme: Hashable, Sendable {
@@ -13,6 +14,14 @@ extension Array where Element == Programme {
     public func now(at date: Date = Date()) -> Programme? { first { $0.start <= date && date < $0.end } }
     /// The first programme that starts after `date`.
     public func next(after date: Date = Date()) -> Programme? { first { $0.start > date } }
+    /// The programmes overlapping `day`, in China's time zone (patch 15, programme page).
+    public func on(_ day: Date) -> [Programme] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = ProgramGuide.chinaTime
+        let start = calendar.startOfDay(for: day)
+        let end = start.addingTimeInterval(86_400)
+        return filter { $0.start < end && $0.end > start }
+    }
 }
 
 /// Where a live playlist's guide comes from: an XMLTV file for all its channels (an M3U's `x-tvg-url`), or an address
@@ -297,9 +306,10 @@ public actor ProgramGuides {
         // Another playlist sharing the guide asks for its channels too.
         let union = guides[url].map { Date().timeIntervalSince($0.at) < lifetime ? $0.wanted.union(wanted) : wanted } ?? wanted
         let task = Task { [http] in
-            let (data, _) = try await http.get(url, limit: 60_000_000)
+            let data = try await self.xmltvData(url, http: http)
             let now = Date()
-            let guide = try ProgramGuide.xmltv(data, wanted: union, from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(30 * 3600))
+            // The programme page shows today and the next days, so the guide keeps a week (patch 15).
+            let guide = try ProgramGuide.xmltv(data, wanted: union, from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(7 * 24 * 3600))
             return Loaded(guide: guide, wanted: union, at: now)
         }
         loading[url] = task
@@ -310,14 +320,63 @@ public actor ProgramGuides {
         return loaded.guide
     }
 
-    /// Today's programmes of the channel `name` from a per-channel address; nil when the ask was cancelled. A failed
-    /// ask counts as no programmes, so the server isn't asked again for a while.
-    public func schedule(_ address: GuideAddress, name: String) async -> [Programme]? {
+    /// The XMLTV file's bytes: a disk copy from today and within 6 hours, else a fresh download (which is
+    /// then kept); a failed download falls back to whatever copy is on disk, stale or not (patch 15, B9).
+    private func xmltvData(_ url: URL, http: HTTPClient) async throws -> Data {
+        if let cached = freshCachedGuideData(for: url) { return cached }
+        do {
+            let (data, _) = try await http.get(url, limit: 60_000_000)
+            storeCachedGuideData(data, for: url)
+            return data
+        } catch {
+            if let stale = staleCachedGuideData(for: url) {
+                Diagnostics.shared.record(.warning, "live", "guide download failed, using cached guide host=\(url.host() ?? "-")")
+                return stale
+            }
+            throw error
+        }
+    }
+
+    /// Where an XMLTV file is kept on disk, by the md5 of its address (patch 15, B9).
+    private static func cacheFile(for url: URL) -> URL {
+        let digest = Insecure.MD5.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
+        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ProgramGuides", isDirectory: true)
+            .appendingPathComponent(digest + ".xml")
+    }
+
+    /// A disk copy from today and within 6 hours, else nil.
+    private func freshCachedGuideData(for url: URL) -> Data? {
+        let file = Self.cacheFile(for: url)
+        guard let modified = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date else { return nil }
         let now = Date()
-        guard let url = address.address(for: name, on: now) else { return [] }
+        guard now.timeIntervalSince(modified) < 6 * 3600 else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = ProgramGuide.chinaTime
+        guard calendar.isDate(modified, inSameDayAs: now) else { return nil }
+        return try? Data(contentsOf: file)
+    }
+
+    /// Whatever copy is on disk, fresh or stale, else nil.
+    private func staleCachedGuideData(for url: URL) -> Data? {
+        try? Data(contentsOf: Self.cacheFile(for: url))
+    }
+
+    private func storeCachedGuideData(_ data: Data, for url: URL) {
+        let file = Self.cacheFile(for: url)
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: file, options: .atomic)
+    }
+
+    /// Today's programmes of the channel `name` from a per-channel address; nil when the ask was cancelled. A failed
+    /// ask counts as no programmes, so the server isn't asked again for a while. `on` picks the day (patch 15,
+    /// programme page); the cache is keyed by the address, which carries the day.
+    public func schedule(_ address: GuideAddress, name: String, on date: Date = Date()) async -> [Programme]? {
+        let now = Date()
+        guard let url = address.address(for: name, on: date) else { return [] }
         if let day = days[url], now.timeIntervalSince(day.at) < lifetime { return day.programmes }
         let programmes: [Programme]
-        do { programmes = ProgramGuide.diyp(try await http.get(url).0, on: now) }
+        do { programmes = ProgramGuide.diyp(try await http.get(url).0, on: date) }
         catch {
             if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled { return nil }
             programmes = []
