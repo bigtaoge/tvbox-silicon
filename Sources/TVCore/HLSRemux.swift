@@ -574,7 +574,7 @@ final class HLSRemuxSession: SegmentedStream, @unchecked Sendable {
     /// instead of falling back.
     private func fetchRanged(_ url: URL) async throws -> Data {
         do { return try await fetchRangedOrThrow(url) }
-        catch is CancellationError { throw }
+        catch let error as CancellationError { throw error }
         catch { return try await fetch(url) }
     }
 
