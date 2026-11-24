@@ -7,9 +7,23 @@ import TVCore
     let address: GuideAddress
     private(set) var guide: ProgramGuide?
     private(set) var perChannel: [String: [Programme]] = [:]
+    /// Per-channel programmes by channel and day ("name|2026-11-24"), for the programme page (patch 15).
+    private(set) var perChannelByDay: [String: [Programme]] = [:]
     @ObservationIgnored private var asked = Set<String>()
+    @ObservationIgnored private var askedDays = Set<String>()
 
     init(address: GuideAddress) { self.address = address }
+
+    /// The start of `date`'s day in China's time zone, for the programme page's date strip (patch 15).
+    static func startOfDay(_ date: Date) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = ProgramGuide.chinaTime
+        return calendar.startOfDay(for: date)
+    }
+
+    static func dayKey(_ name: String, on day: Date) -> String {
+        name + "|" + ProgramGuide.dayString(day)
+    }
 
     /// The guide a playlist uses: the address the viewer typed in for it, else its subscription entry's `epg`, else
     /// the `x-tvg-url` its M3U header names.
@@ -25,6 +39,16 @@ import TVCore
         switch address {
         case .xmltv: guide?.schedule(for: channel)
         case .perChannel: perChannel[channel.name]
+        }
+    }
+
+    /// The channel's programmes on `day` (China time zone), for the programme page (patch 15): the loaded
+    /// XMLTV guide filtered to the day, or the per-channel address asked for that day. Nil when the guide
+    /// has nothing for the channel at all.
+    func schedule(for channel: Channel, on day: Date) -> [Programme]? {
+        switch address {
+        case .xmltv: guide?.schedule(for: channel)?.on(day)
+        case .perChannel: perChannelByDay[Self.dayKey(channel.name, on: day)]
         }
     }
 
@@ -45,6 +69,20 @@ import TVCore
             if !programmes.isEmpty { perChannel[channel.name] = programmes }
         } else {
             asked.remove(channel.name)
+        }
+    }
+
+    /// Asks a per-channel guide for the channel's programmes on `day`, once per channel and day (patch 15,
+    /// programme page). An XMLTV guide already holds the whole week, so nothing is asked for it. The answer
+    /// is kept even when empty, so the page can tell "no programmes that day" from "still asking".
+    func fetch(_ channel: Channel, on day: Date) async {
+        guard case .perChannel = address else { return }
+        let key = Self.dayKey(channel.name, on: day)
+        guard askedDays.insert(key).inserted else { return }
+        if let programmes = await ProgramGuides.shared.schedule(address, name: channel.name, on: day) {
+            perChannelByDay[key] = programmes
+        } else {
+            askedDays.remove(key)
         }
     }
 }

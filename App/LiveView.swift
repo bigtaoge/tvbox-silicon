@@ -202,8 +202,8 @@ struct ChannelListView: View {
     @State private var playlistGuide: String?
     @State private var guide: LiveGuide?
     @State private var editingGuide = false
-    /// The APTV page's tab (iOS, patch 14): channels, categories, or lines.
-    private enum LiveTab: String, CaseIterable { case channels, categories, lines }
+    /// The APTV page's tab (iOS, patch 14): channels, categories, programmes, or lines.
+    private enum LiveTab: String, CaseIterable { case channels, categories, programs, lines }
     @State private var tab: LiveTab = .channels
     @State private var fullScreen = false
     @State private var turnedFullScreen = false
@@ -213,6 +213,8 @@ struct ChannelListView: View {
     /// The lines' measured latencies by address, from the last speed test (B8).
     @State private var lineSpeeds: [String: Int] = [:]
     @State private var measuringLines = false
+    /// The day the programme page shows, in China's time zone (patch 15).
+    @State private var programDay: Date = LiveGuide.startOfDay(Date())
     /// The channel in the player at the top of the page: the one playing, when it is one of this source's.
     private var playingChannel: Channel? {
         guard let playing = store.playing else { return nil }
@@ -281,11 +283,11 @@ struct ChannelListView: View {
         #endif
     }
 
-    /// The APTV-style live page (iOS, patch 14): the player pinned at the top, with 分类 / 频道 / 线路
+    /// The APTV-style live page (iOS, patch 14): the player pinned at the top, with 分类 / 频道 / 节目 / 线路
     /// below it. The channel plays at the top of the page instead of in the full-screen player
     /// (`store.liveInlinePlayer`), and leaving the page ends its playback, as the watch page does.
-    /// The programme page waits for built-in EPG: the channel rows still show the current programme
-    /// from the playlist's own guide (`LiveGuide`).
+    /// The programme page (patch 15) shows the day's guide from the playlist's own guide or the XMLTV
+    /// address typed in the 节目单 dialog (`LiveGuide`).
     private var aptvBody: some View {
         ZStack(alignment: .top) {
             if !fullScreen {
@@ -378,6 +380,7 @@ struct ChannelListView: View {
         Picker("", selection: $tab) {
             Text("频道").tag(LiveTab.channels)
             Text("分类").tag(LiveTab.categories)
+            Text("节目").tag(LiveTab.programs)
             Text("线路").tag(LiveTab.lines)
         }
         .pickerStyle(.segmented)
@@ -388,6 +391,7 @@ struct ChannelListView: View {
         switch tab {
         case .channels: channelTab
         case .categories: categoryTab
+        case .programs: programTab
         case .lines: lineTab
         }
     }
@@ -486,6 +490,150 @@ struct ChannelListView: View {
         .scrollIndicators(.never)
         .task(id: tab) { if tab == .lines { await measureLines() } }
         .task(id: playingChannel?.id) { if tab == .lines { await measureLines() } }
+    }
+
+    // MARK: - Programme tab (patch 15)
+
+    /// The days the programme page's strip offers: today and the next 6 days, in China's time zone.
+    private var programDays: [Date] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = ProgramGuide.chinaTime
+        let today = LiveGuide.startOfDay(Date())
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    /// The programme page's channel: the one playing, else the first.
+    private var programChannel: Channel? { playingChannel ?? channels.first }
+
+    private var programDayIsToday: Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = ProgramGuide.chinaTime
+        return calendar.isDateInToday(programDay)
+    }
+
+    /// A date strip label: "今日" for today, else "11/25 周二".
+    private func programDayLabel(_ day: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = ProgramGuide.chinaTime
+        if calendar.isDateInToday(day) { return "今日" }
+        return Self.programDayFormatter.string(from: day)
+    }
+
+    private static let programDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = ProgramGuide.chinaTime
+        formatter.dateFormat = "M/d EEE"
+        return formatter
+    }()
+
+    /// The programme page: a date strip, the day's full guide for the channel playing (else the first),
+    /// a "正在直播" badge on the programme on now, and a now-playing footer. The guide comes from
+    /// ProgramGuide/LiveGuide: the playlist's own guide, or the XMLTV address typed in the 节目单 dialog.
+    private var programTab: some View {
+        VStack(spacing: 0) {
+            if let channel = programChannel {
+                dayStrip
+                Divider()
+                programList(channel: channel)
+                if programDayIsToday, let now = guide?.schedule(for: channel)?.now() {
+                    Divider()
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill").font(.caption).foregroundStyle(.green)
+                        Text("正在播放：\(now.title)").font(.subheadline).lineLimit(1)
+                        Spacer()
+                        Text(channel.name).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(Color.primary.opacity(0.04))
+                }
+            } else {
+                EmptyResults(symbol: "tv.slash", title: "暂无频道", fills: true)
+            }
+        }
+        .task(id: programDay) { if let channel = programChannel { await guide?.fetch(channel, on: programDay) } }
+        .task(id: programChannel?.id) { if let channel = programChannel { await guide?.fetch(channel, on: programDay) } }
+    }
+
+    private var dayStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(programDays, id: \.self) { day in
+                    let selected = day == programDay
+                    Button { programDay = day } label: {
+                        Text(programDayLabel(day))
+                            .font(.subheadline.weight(selected ? .semibold : .regular))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(selected ? Brand.accent : Color.primary.opacity(0.06), in: Capsule())
+                            .foregroundStyle(selected ? .white : .primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+        }
+    }
+
+    private func programList(channel: Channel) -> some View {
+        Group {
+            if let guide {
+                if case .xmltv = guide.address, guide.guide == nil {
+                    // The XMLTV file is still loading (it loads when the channels load).
+                    ProgressView("正在加载节目单…")
+                } else if let programmes = guide.schedule(for: channel, on: programDay) {
+                    if programmes.isEmpty {
+                        EmptyResults(symbol: "calendar", title: "当天暂无节目单",
+                                     message: "该频道在所选日期没有节目信息。")
+                    } else {
+                        TimelineView(ProgrammeTimes(programmes)) { context in
+                            programmeRows(programmes, now: context.date)
+                        }
+                    }
+                } else if case .perChannel = guide.address {
+                    // The per-channel address is still being asked for this day.
+                    ProgressView("正在加载节目单…")
+                } else {
+                    EmptyResults(symbol: "calendar", title: "暂无节目单",
+                                 message: "该频道没有节目信息。")
+                }
+            } else {
+                // No guide address at all: the playlist carries no guide and nothing was typed in.
+                EmptyResults(symbol: "calendar.badge.exclamationmark", title: "暂无节目单",
+                             message: "直播源没有自带节目单。在“节目单”里填一个 XMLTV 地址，即可查看节目单。",
+                             action: "填写节目单地址", actionSymbol: "calendar.badge.plus") { editingGuide = true }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func programmeRows(_ programmes: [Programme], now: Date) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(programmes, id: \.self) { programme in
+                    let isNow = programme.start <= now && now < programme.end
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(programme.start, format: .dateTime.hour().minute())–\(programme.end, format: .dateTime.hour().minute())")
+                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            Text(programme.title).font(.headline).lineLimit(1)
+                        }
+                        Spacer()
+                        if isNow {
+                            Text("正在直播").font(.caption.weight(.semibold)).foregroundStyle(.white)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Color.green, in: Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background {
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(isNow ? Brand.accent.opacity(0.14) : Color.primary.opacity(0.05))
+                    }
+                    .opacity(programme.end <= now ? 0.45 : 1)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+        }
     }
 
     private func lineRow(line: Channel, index: Int, current: Bool, latency: Int?, fastest: Bool, measuring: Bool, action: @escaping () -> Void) -> some View {

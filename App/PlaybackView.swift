@@ -203,6 +203,8 @@ import IOKit.pwr_mgt
     private(set) var showsPicture = false
     /// When this episode (or line) began to open: the waiting screen counts from here until the first frame.
     private(set) var openedAt = Date()
+    /// Milliseconds since the current switch started (`openedAt`), for the staged switch timings (patch 15).
+    private func switchMs() -> Int { Int(Date().timeIntervalSince(openedAt) * 1000) }
     /// The SF Symbol that names the latest failure for the error screen.
     private(set) var errorSymbol = "play.slash.fill"
     /// Bullet comments for the media, when its source has them.
@@ -621,10 +623,9 @@ import IOKit.pwr_mgt
         prewarmTask = Task { [weak self] in
             for neighbor in [neighbors.0, neighbors.1].compactMap({ $0 }) {
                 guard let self, self.generation == active, !Task.isCancelled else { return }
-                let resolved = await LiveCatalog.playable(neighbor)
-                guard self.generation == active, !Task.isCancelled else { return }
-                // Warm the ad check's memory too, so the switch doesn't pay its fetch either (B2).
-                _ = await AdSkip.route(resolved.url, headers: resolved.headers, sourceKey: resolved.historyContext?.sourceKey)
+                // Only the resolution: the ad check is skipped for live (patch 15), so there is
+                // nothing else to warm.
+                _ = await LiveCatalog.playable(neighbor)
             }
         }
     }
@@ -910,7 +911,7 @@ import IOKit.pwr_mgt
                 _ = self.tryNextLine(after: nil)
             }
         }
-        Diagnostics.shared.record(.info, "player", "start name=\(channel.name) group=\(channel.group) url=\(channel.url.absoluteString) headers=\(channel.headers.keys.sorted().joined(separator: ","))")
+        Diagnostics.shared.record(.info, "player", "switch start name=\(channel.name) group=\(channel.group) url=\(channel.url.absoluteString) headers=\(channel.headers.keys.sorted().joined(separator: ","))")
         preparation = Task { [weak self] in
             guard let self else { return }
             // A live room becomes its current stream address now; the address expires.
@@ -945,6 +946,7 @@ import IOKit.pwr_mgt
                     if channel.url != original { LiveLineCache.store(resolved: channel.url, for: original) }
                 }
             }
+            Diagnostics.shared.record(.info, "player", "switch resolved \(self.switchMs())ms")
             let prepared: Prepared
             do { prepared = try await self.prepare(channel) }
             catch {
@@ -981,11 +983,17 @@ import IOKit.pwr_mgt
         }
     }
     private func configure(_ channel: Channel, url: URL, generation activeGeneration: UUID) {
+        Diagnostics.shared.record(.info, "player", "switch configure \(self.switchMs())ms")
         clockMark = nil
         #if !os(macOS)
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-            try AVAudioSession.sharedInstance().setActive(true)
+            // The session is usually already in this state from the previous channel: setting the
+            // category again on every switch only costs a round trip (patch 15).
+            let audioSession = AVAudioSession.sharedInstance()
+            if audioSession.category != .playback || audioSession.mode != .moviePlayback {
+                try audioSession.setCategory(.playback, mode: .moviePlayback)
+            }
+            try audioSession.setActive(true)
         } catch { Diagnostics.shared.failure("player", "audio session", error); self.error = error.localizedDescription }
         #endif
         if !url.isFileURL {
@@ -1023,6 +1031,7 @@ import IOKit.pwr_mgt
         let qaSeek = UserDefaults.standard.double(forKey: "qaSeek")
         if qaSeek > 0 { player.seek(to: CMTime(seconds: qaSeek, preferredTimescale: 600)) }
         #endif
+        Diagnostics.shared.record(.info, "player", "switch attach \(self.switchMs())ms")
     }
 
     /// Request headers for an asset. iPhone, iPad and Apple TV ignore a `User-Agent` among the header
@@ -1223,6 +1232,7 @@ import IOKit.pwr_mgt
                 if status == .readyToPlay {
                     if self.isLive { self.liveReadyAt = .now }
                     self.lineReadyAt = .now; self.lineWatch?.cancel(); self.lineWatch = nil
+                    Diagnostics.shared.record(.info, "player", "switch ready \(self.switchMs())ms")
                     if self.isLive {
                         // The line that played is the one the next play starts on (B5).
                         if self.lines.count > 1, let base = self.lines.first { LiveLineCache.record(line: self.line, for: base) }
@@ -1320,6 +1330,7 @@ import IOKit.pwr_mgt
                 if paused { self.clearBoost() }
                 // The first frame lands a beat after playback starts; keep the artwork until then, so no black flashes between.
                 if playing, !self.showsPicture {
+                    Diagnostics.shared.record(.info, "player", "switch first-frame \(self.switchMs())ms")
                     Task { @MainActor [weak self] in
                         try? await Task.sleep(for: .milliseconds(350))
                         guard let self, self.generation == activeGeneration, self.player.timeControlStatus == .playing else { return }
@@ -1776,16 +1787,23 @@ extension PlaybackSession {
         // first segment needs repackaging, the stream opens repackaged from the start instead of failing in
         // AVPlayer first and fetching the same stream twice. A stream that needs nothing plays directly.
         if isLive, prepared.url == address, address.pathExtension.lowercased() == "m3u8", ["http", "https"].contains(address.scheme),
-           channel.url.scheme != DownloadLibrary.scheme, !Remux.isRemuxed(address),
-           let remuxed = await remuxProbe(address, headers: channel.headers) {
-            prepared.url = remuxed
-            return prepared
+           channel.url.scheme != DownloadLibrary.scheme, !Remux.isRemuxed(address) {
+            Diagnostics.shared.record(.info, "player", "switch probe-start \(self.switchMs())ms host=\(address.host() ?? "-")")
+            let remuxed = await remuxProbe(address, headers: channel.headers)
+            Diagnostics.shared.record(.info, "player", "switch probe-done \(self.switchMs())ms remuxed=\(remuxed != nil)")
+            if let remuxed {
+                prepared.url = remuxed
+                return prepared
+            }
         }
         // A video whose playlist carries spliced-in ads opens through the loader that cuts them (#567); any other plays as it is.
-        if prepared.url == address, address.pathExtension.lowercased() == "m3u8", ["http", "https"].contains(address.scheme),
+        // A live playlist never ends (#EXT-X-ENDLIST), so its ads check can only cost fetches and never cut
+        // anything: live skips it (patch 15).
+        if !isLive, prepared.url == address, address.pathExtension.lowercased() == "m3u8", ["http", "https"].contains(address.scheme),
            channel.url.scheme != DownloadLibrary.scheme,
            let routed = await AdSkip.route(address, headers: channel.headers.merging(CloudStreams.playlistHeaders(for: address) ?? [:]) { $1 },
                                            sourceKey: channel.historyContext?.sourceKey) {
+            Diagnostics.shared.record(.info, "player", "switch adskip-done \(self.switchMs())ms")
             prepared.url = routed
         }
         #endif
@@ -1971,6 +1989,8 @@ extension PlaybackSession {
         transfer = Transfer(); steps = []
         catalogDanmaku.clear(); sourceDanmaku = []
         error = nil; switchNotice = nil; quality = nil
+        // The queued episode takes over: the switch timings measure from here (patch 15).
+        openedAt = .now
         begin(channel)
         loading = upcoming.item.status != .readyToPlay
         playing = channel; automatic = upcoming.prepared.url
