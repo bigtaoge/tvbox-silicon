@@ -11,9 +11,10 @@ public enum AdSkip {
     /// Sources whose playlists were checked and showed no ads: checked once, then skipped (`route`).
     /// A source that showed ads stays checked every time, since an ad run comes and goes. The memory
     /// lives in this launch only; a relaunch checks again, so a source that starts splicing ads is
-    /// caught then (patch 14, B2).
-    private static var cleanKeys = Set<String>()
-    private static var adsKeys = Set<String>()
+    /// caught then (patch 14, B2). Every access goes through `memoryLock`, so the storage is marked
+    /// `nonisolated(unsafe)` for Swift 6 (the lock, not the compiler, guards it).
+    private static nonisolated(unsafe) var cleanKeys = Set<String>()
+    private static nonisolated(unsafe) var adsKeys = Set<String>()
     private static let memoryLock = NSLock()
 
     /// The memory key for a playlist: its source when known (a video source's key), else its host. A live

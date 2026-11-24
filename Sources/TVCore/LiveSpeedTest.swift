@@ -9,7 +9,9 @@ public enum LiveSpeedTest {
     /// How long a measurement stands before the line list measures again.
     public static let cacheLifetime: TimeInterval = 600
 
-    private static var cache: [String: (ms: Int, at: Date)] = [:]
+    // Every access goes through `lock`, so the storage is marked `nonisolated(unsafe)` for Swift 6
+    // (the lock, not the compiler, guards it).
+    private static nonisolated(unsafe) var cache: [String: (ms: Int, at: Date)] = [:]
     private static let lock = NSLock()
 
     /// The cached latency of a line's address, when measured in the last 10 minutes.
