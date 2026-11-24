@@ -1050,11 +1050,14 @@ import IOKit.pwr_mgt
         let asset = CloudStreams.asset(for: url) ?? CENCStreams.asset(for: url) ?? DashStreams.asset(for: url) ?? LiveRepair.asset(for: url)
             ?? AVURLAsset(url: url, options: Self.assetOptions(headers: channel.headers))
         let item = AVPlayerItem(asset: asset)
-        // A live stream plays at its live edge, not behind a cushion: don't wait to minimize stalling,
-        // and keep only a second or two ahead (B6). A video keeps AVPlayer's own buffering; the player is
-        // reused across switches, so the video side restores the default explicitly.
+        // A live stream plays at its live edge, not behind a cushion: don't wait to minimize stalling.
+        // But the cushion can't be a second or two: the remux pipeline hands AVPlayer whole 10-second
+        // segments through a transcode step, so any slow segment empties a 1.5-second buffer and the
+        // picture stalls (APTV and the Android/Windows players are smooth on the same source, so the
+        // source itself is fine). One full segment of slack absorbs a slow one; the player is reused
+        // across switches, and a video restores AVPlayer's own buffering explicitly.
         player.automaticallyWaitsToMinimizeStalling = !isLive
-        item.preferredForwardBufferDuration = isLive ? 1.5 : 0
+        item.preferredForwardBufferDuration = isLive ? 10 : 0
         if url.scheme == CloudStreams.scheme {
             // The duration sets how far ahead the file is read, on this device and for this bitrate (#702).
             Task { if let seconds = try? await asset.load(.duration).seconds { CloudStreams.setDuration(seconds, for: url) } }
