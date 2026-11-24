@@ -11,6 +11,9 @@ struct MusicView: View {
     /// something else clears it.
     @State private var autoPlayQuery: String?
     @State private var showsSettings = false
+    /// The song a menu offered to a playlist: its sheet opens from this page, so every row's menu
+    /// can offer it.
+    @Bindable private var playlists = MusicPlaylistStore.shared
     #if DEBUG
     /// `-qaMusicOpen 1` opens the first album or playlist found, for screenshots.
     @State private var qaOpened: MusicCollection?
@@ -116,6 +119,9 @@ struct MusicView: View {
         .fullScreenCover(isPresented: $showsSettings) { MusicSettingsView() }
         #else
         .sheet(isPresented: $showsSettings) { MusicSettingsView() }
+        #endif
+        #if os(iOS)
+        .sheet(item: $playlists.pickingTrack) { track in MusicAddToPlaylistSheet(track: track) }
         #endif
         .task {
             if query.isEmpty, !search.query.isEmpty { query = search.query }
@@ -308,13 +314,16 @@ enum MusicLayout {
 private struct MusicHome: View {
     @Environment(Store.self) private var store
     let openSettings: () -> Void
+    @Bindable private var playlists = MusicPlaylistStore.shared
+    @State private var showsNewPlaylist = false
+    @State private var newPlaylistName = ""
 
     var body: some View {
         let library = store.music.library
         let browse = store.musicBrowse
         let resumable = store.music.track == nil ? library.resumePoint : nil
         let downloads = !MusicDownloadLibrary.shared.items.isEmpty
-        let empty = library.history.isEmpty && resumable == nil && !downloads && browse.sections.isEmpty && !browse.loading
+        let empty = library.history.isEmpty && resumable == nil && !downloads && browse.sections.isEmpty && !browse.loading && playlists.playlists.isEmpty
         #if os(tvOS)
         // Apple TV has no toolbar button for Music Settings (where music sources are added), so the page offers it
         // here once there is something to show; the empty page below has its own (#1024).
@@ -328,9 +337,39 @@ private struct MusicHome: View {
         if let point = resumable, let track = point.queue.current {
             MusicContinueCard(point: point, track: track).padding(.bottom, 20)
         }
+        #if !os(tvOS)
+        if let track = store.music.track {
+            MusicNowPlayingLink(track: track).padding(.bottom, 20)
+        }
+        #endif
         let liked = store.favorites.musicTracks.count
         if liked > 0 { MusicLikedLink(count: liked).padding(.bottom, 20) }
         if downloads { MusicDownloadsLink().padding(.bottom, 20) }
+        // My Playlists: the listener's own lists, with a way to make one.
+        HStack {
+            SectionHeader(title: "我的歌单")
+            Spacer()
+            Button("新建歌单") { showsNewPlaylist = true }
+                .controlButton()
+                .alert("新建歌单", isPresented: $showsNewPlaylist) {
+                    TextField("歌单名称", text: $newPlaylistName)
+                    Button("创建") {
+                        playlists.create(name: newPlaylistName)
+                        newPlaylistName = ""
+                    }
+                    Button("取消", role: .cancel) { newPlaylistName = "" }
+                }
+        }
+        .padding(.bottom, 8)
+        .tvFocusSection()
+        ForEach(playlists.playlists) { playlist in
+            MusicPlaylistRow(playlist: playlist)
+        }
+        if playlists.playlists.isEmpty {
+            Text("还没有自建歌单：长按一首歌选“加入歌单”，或点右上角新建一个。")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .padding(.bottom, 20)
+        }
         if !browse.sections.isEmpty {
             MusicBrowseShelves(sections: browse.sections).padding(.bottom, 28)
         } else if browse.loading {
@@ -401,6 +440,33 @@ private struct MusicContinueCard: View {
     }
 }
 
+#if !os(tvOS)
+/// The song playing now, at the top of the Music page: tapping it opens the playing queue,
+/// where the song itself opens the full player.
+private struct MusicNowPlayingLink: View {
+    let track: MusicTrack
+
+    var body: some View {
+        RouteLink { MusicQueuePage() } label: {
+            HStack(spacing: MusicLayout.gap) {
+                MusicArtwork(url: track.artwork, size: MusicLayout.art * 1.4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.text("Now Playing")).font(.caption.weight(.semibold)).foregroundStyle(Brand.accent)
+                    Text(track.title).font(.headline).lineLimit(1)
+                    Text(track.artistLine).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .contentPanel(cornerRadius: 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+#endif
+
 struct MusicTrackRow: View {
     @Environment(Store.self) private var store
     let track: MusicTrack
@@ -456,6 +522,9 @@ struct MusicTrackRow: View {
         // On Apple TV, a long press.
         .contextMenu {
             FavoriteMenuButton(item: .music(track), name: track.title)
+            #if os(iOS)
+            Button { MusicPlaylistStore.shared.pickingTrack = track } label: { Label("加入歌单…", systemImage: "music.note.list") }
+            #endif
             Button { store.music.playNext([track]) } label: { Label(L10n.text("Play Next"), systemImage: "text.line.first.and.arrowtriangle.forward") }
             Button { store.music.addToUpNext([track]) } label: { Label(L10n.text("Add to Up Next"), systemImage: "text.line.last.and.arrowtriangle.forward") }
             Divider()

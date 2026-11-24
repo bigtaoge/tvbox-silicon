@@ -48,6 +48,11 @@ struct MusicMiniPlayer: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            if !inline {
+                Image(systemName: "chevron.up")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
             Group {
                 if music.failure != nil {
                     button("arrow.clockwise", label: "Retry") { music.retry() }
@@ -59,6 +64,12 @@ struct MusicMiniPlayer: View {
                 }
                 if !inline {
                     button("forward.fill", label: "Next") { music.next() }.disabled(music.queue?.hasNext != true)
+                    // The playing queue, as its own page: tapping it does not open the full player first.
+                    RouteLink { MusicQueuePage() } label: {
+                        Image(systemName: "list.bullet").frame(width: 36, height: 36).contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L10n.text("Up Next"))
                     // Closes the strip without opening Now Playing first; Continue Playing keeps the song.
                     button("xmark", label: "Stop") { music.stop() }.font(.body).foregroundStyle(.secondary)
                 }

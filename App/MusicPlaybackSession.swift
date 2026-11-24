@@ -204,6 +204,17 @@ typealias MusicTrack = TVCore.MusicTrack
         // `-qaMusicStayOnPage 1` keeps the list in view, for screenshots of the Now Playing card.
         if UserDefaults.standard.bool(forKey: "qaMusicStayOnPage") { presentsPlayer = false }
         #endif
+        #elseif os(iOS)
+        // Tapping a song opens Now Playing, as in Music: playback used to leave only the mini strip,
+        // and the full player opened only by tapping it. Every call here is a tap to play — search,
+        // a playlist, liked songs, downloads, history, Watch Now, a TVBox chapter — while the next
+        // song on its own comes through next()/jump(to:)/loadCurrent, never here, so closing the
+        // sheet does not pop it open again when the next song starts.
+        presentsPlayer = true
+        #if DEBUG
+        // `-qaMusicStayOnPage 1` keeps the list in view, for screenshots of the Now Playing card.
+        if UserDefaults.standard.bool(forKey: "qaMusicStayOnPage") { presentsPlayer = false }
+        #endif
         #endif
     }
 
@@ -275,6 +286,22 @@ typealias MusicTrack = TVCore.MusicTrack
         self.queue = queue
         consecutiveFailures = 0
         loadCurrent(at: nil)
+    }
+
+    /// Takes a song out of the queue, keeping the one playing where it is. The shuffle mirror
+    /// loses it too, so a later unshuffle does not bring it back.
+    func removeFromQueue(at index: Int) {
+        guard var queue, let removed = queue.remove(at: index) else { return }
+        self.queue = queue
+        unshuffled?.removeAll { $0.id == removed.id }
+    }
+
+    /// Empties what comes after the song playing.
+    func clearUpNext() {
+        guard var queue else { return }
+        queue.removeUpcoming()
+        self.queue = queue
+        unshuffled = unshuffled?.filter { track in queue.tracks.contains { $0.id == track.id } }
     }
 
     /// Plays a channel the viewer picked, at the same second when it is the same recording.

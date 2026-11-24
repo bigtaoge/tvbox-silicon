@@ -77,27 +77,141 @@ struct MusicUpNext: View {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     Text(L10n.text("Up Next")).font(.headline).padding(.bottom, 6)
                     ForEach(upcoming, id: \.offset) { index, track in
-                        Button { music.jump(to: index) } label: {
-                            HStack(spacing: 12) {
-                                MusicArtwork(url: track.artwork, size: 44)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(track.title).font(.body.weight(.medium)).lineLimit(1)
-                                    Text(track.artistLine).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                if let duration = track.duration {
-                                    Text(MusicTime.text(duration)).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 6)
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
+                        MusicUpNextRow(index: index, track: track)
                     }
                 }
                 .padding(.vertical, 12)
             }
         }
+    }
+}
+
+/// One song after this one: cover, title, artist, length; tapping it plays it. The Queue page
+/// reuses the same row and adds a × to take the song out.
+struct MusicUpNextRow: View {
+    @Environment(Store.self) private var store
+    let index: Int
+    let track: MusicTrack
+    var onRemove: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button { store.music.jump(to: index) } label: {
+                HStack(spacing: 12) {
+                    MusicArtwork(url: track.artwork, size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(track.title).font(.body.weight(.medium)).lineLimit(1)
+                        Text(track.artistLine).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if let duration = track.duration {
+                        Text(MusicTime.text(duration)).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 6)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            if let onRemove {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill").font(.title3).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("从队列移除")
+            }
+        }
+    }
+}
+
+/// The playing queue as its own page: the song now, and what comes after it. From the Music
+/// page's Now Playing card and the mini player's list button; the full player's Up Next panel
+/// stays as it is.
+struct MusicQueuePage: View {
+    @Environment(Store.self) private var store
+    @Bindable private var playlists = MusicPlaylistStore.shared
+    @State private var justSaved = false
+
+    var body: some View {
+        let music = store.music
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: MusicLayout.rowSpacing) {
+                if let track = music.track {
+                    nowPlaying(track, music: music).padding(.bottom, 20)
+                }
+                if let queue = music.queue {
+                    let upcoming = Array(queue.tracks.enumerated()).filter { $0.offset > queue.index }
+                    HStack {
+                        SectionHeader(title: L10n.text("Up Next"))
+                        Spacer()
+                        Button("清空") { music.clearUpNext() }
+                            .controlButton()
+                            .disabled(upcoming.isEmpty)
+                    }
+                    .padding(.bottom, 8)
+                    .tvFocusSection()
+                    if upcoming.isEmpty {
+                        EmptyResults(symbol: "list.bullet", title: "队列里没有下一首",
+                                     message: "播完这首就停了。去搜一首歌，或打开一张歌单接着播。")
+                    }
+                    ForEach(upcoming, id: \.offset) { index, track in
+                        MusicUpNextRow(index: index, track: track) { music.removeFromQueue(at: index) }
+                    }
+                    Button {
+                        let tracks = Array(queue.tracks[queue.index...])
+                        _ = playlists.create(name: queue.source ?? "播放列表", tracks: tracks)
+                        justSaved = true
+                    } label: {
+                        Label(justSaved ? "已存为歌单" : "存为歌单", systemImage: justSaved ? "checkmark" : "music.note.list")
+                    }
+                    .controlButton()
+                    .padding(.top, 12)
+                    .task(id: justSaved) {
+                        guard justSaved else { return }
+                        try? await Task.sleep(for: .seconds(2))
+                        justSaved = false
+                    }
+                } else {
+                    EmptyResults(symbol: "list.bullet", title: "没有正在播放的队列",
+                                 message: "去搜一首歌，或打开一张歌单，播起来再看。")
+                }
+            }
+            .glassRowInsets()
+            .pageContainer()
+        }
+        .screenBackdrop()
+        .screenTitle("播放列表")
+        // No musicPlayerInset here: the strip's list button would push this page again, and the
+        // page itself is the player — the song above has its own play control.
+    }
+
+    /// The song playing now: cover, title, artist, and a play/pause button; tapping the song
+    /// itself opens the full player.
+    private func nowPlaying(_ track: MusicTrack, music: MusicPlaybackSession) -> some View {
+        HStack(spacing: MusicLayout.gap) {
+            Button { music.presentsPlayer = true } label: {
+                HStack(spacing: MusicLayout.gap) {
+                    MusicArtwork(url: track.artwork, size: MusicLayout.art * 1.4)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.text("Now Playing")).font(.caption.weight(.semibold)).foregroundStyle(Brand.accent)
+                        Text(track.title).font(.headline).lineLimit(1)
+                        Text(track.artistLine).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 8)
+            Button { music.toggle() } label: {
+                Image(systemName: music.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.title2)
+                    .frame(width: 44, height: 44).contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.text(music.isPlaying ? "Pause" : "Play"))
+        }
+        .padding(14)
+        .contentPanel(cornerRadius: 20)
+        .contentShape(Rectangle())
     }
 }
 #endif
