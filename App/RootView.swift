@@ -482,9 +482,10 @@ private struct PlayerPresentation: ViewModifier {
         // One presentation while anything plays: the next episode replaces the channel inside the player.
         // Keyed by the channel, every change dismissed the player and presented a new one, so even a
         // queued episode would stop and load.
-        // An iPhone watch page plays its own video at the top of the page (`VideoDetailView`).
-        content.fullScreenCover(item: Binding(get: { store.playsInWatchPage(playing) ? nil : playing.map(PlayerSlot.init) },
-                                              set: { if $0 == nil, !store.playsInWatchPage(playing) { playing = nil } })) {
+        // An iPhone watch page plays its own video at the top of the page (`VideoDetailView`); so does the
+        // live page's own player (`ChannelListView`, patch 14).
+        content.fullScreenCover(item: Binding(get: { store.playsInWatchPage(playing) || store.liveInlinePlayer ? nil : playing.map(PlayerSlot.init) },
+                                              set: { if $0 == nil, !store.playsInWatchPage(playing), !store.liveInlinePlayer { playing = nil } })) {
             // Handed in: the iPad app on a Mac presents a full-screen cover without the presenter's environment
             // objects, and every video stopped the app there ("No Observable object of type Store found").
             PlaybackView(channel: $0.channel).environment(store)

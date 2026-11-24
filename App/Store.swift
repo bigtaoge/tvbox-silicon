@@ -90,6 +90,9 @@ import TVCore
     /// The videos whose iPhone watch page is on screen (`PlaybackHistoryContext.id`): their episodes play at the top
     /// of the page instead of in the full-screen player.
     var watchPageScopes: Set<String> = []
+    /// The live page's own player is on screen (the APTV page): the channel plays at the top of the page
+    /// instead of in the full-screen player. Set while the page shows its player, cleared when it leaves.
+    var liveInlinePlayer = false
     func playsInWatchPage(_ channel: Channel?) -> Bool {
         guard let scope = channel?.historyContext?.id else { return false }
         return watchPageScopes.contains(scope)

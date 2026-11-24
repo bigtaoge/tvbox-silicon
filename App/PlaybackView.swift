@@ -253,11 +253,22 @@ import IOKit.pwr_mgt
     private(set) var lines: [Channel] = []
     private(set) var line = 0
     private var triedLines: Set<Int> = []
+    /// The channel is a live playlist's channel, not just a platform room: its low-latency buffer, the
+    /// pre-probe and the last-good line apply to it, and not to a video. Set by `startCatalogPlayback`,
+    /// which knows the lineup (patch 14).
+    var livePlaylist = false
+    /// The channels beside one in its lineup, for prewarming the neighbours while this one plays (B7).
+    var neighborChannels: ((Channel) -> (Channel?, Channel?))?
+    /// The channel whose cached direct address is playing, so a failure of that address resolves it again (B5).
+    private var resolvedFrom: Channel?
+    /// The channel whose neighbours were prewarmed, and the prewarming still running (B7).
+    private var prewarmedChannel: Channel?
+    private var prewarmTask: Task<Void, Never>?
     /// When the line playing became ready. One that isn't ready after `lineWait` gives way to the next, as one that
     /// fails does: a dead IPTV address can keep AVPlayer waiting a minute before it says so.
     private var lineReadyAt: ContinuousClock.Instant?
     private var lineWatch: Task<Void, Never>?
-    static let lineWait: Duration = .seconds(15)
+    static let lineWait: Duration = .seconds(6)
     /// The sound tracks of a file that groups none of them (`UngroupedAudio`), for the player's Audio choice, and the
     /// one playing. Empty when AVFoundation offers the choice itself, or there is none.
     private(set) var audioChoices: [UngroupedAudio.Choice] = []
@@ -586,6 +597,38 @@ import IOKit.pwr_mgt
         return true
     }
 
+    /// The cached direct address failed before the stream ever started: drop it and resolve the channel
+    /// again from its playlist address, instead of showing the error (B5). Once per open: the fresh
+    /// resolution doesn't set `resolvedFrom`, so a second failure falls through to the next line. A
+    /// stream that played already proved its address, so its failure tries the next line instead.
+    private func retryCachedAddress(after failure: Error?) -> Bool {
+        guard let original = resolvedFrom, lineReadyAt == nil else { return false }
+        resolvedFrom = nil
+        LiveLineCache.clear(for: original.url)
+        Diagnostics.shared.record(.warning, "player", "cached address failed; resolving again host=\(original.url.host() ?? "-")")
+        open(original)
+        return true
+    }
+
+    /// Resolves the channels beside this one while it plays, so switching to one starts from its address
+    /// instead of resolving it then (B7). Only the resolution: no item is built, and neighbours already
+    /// warmed for this channel aren't warmed again.
+    private func prewarmNeighbors() {
+        guard let base = lines.first ?? playing, let neighbors = neighborChannels?(base), prewarmedChannel != base else { return }
+        prewarmedChannel = base
+        prewarmTask?.cancel()
+        let active = generation
+        prewarmTask = Task { [weak self] in
+            for neighbor in [neighbors.0, neighbors.1].compactMap({ $0 }) {
+                guard let self, self.generation == active, !Task.isCancelled else { return }
+                let resolved = await LiveCatalog.playable(neighbor)
+                guard self.generation == active, !Task.isCancelled else { return }
+                // Warm the ad check's memory too, so the switch doesn't pay its fetch either (B2).
+                _ = await AdSkip.route(resolved.url, headers: resolved.headers, sourceKey: resolved.historyContext?.sourceKey)
+            }
+        }
+    }
+
     /// The other line could not be resolved either: show why instead of loading forever.
     func lineSwitchFailed(_ message: String) {
         guard switchNotice != nil else { return }
@@ -809,7 +852,19 @@ import IOKit.pwr_mgt
         if let advanced, advanced == channel { self.advanced = nil; return }
         lines = channel.alternates.isEmpty ? [] : channel.lines
         line = 0; triedLines = [0]
-        open(channel)
+        // A live channel starts on the line that played last time (B5); a video starts on its first line as before.
+        if isLiveChannel(channel), lines.count > 1,
+           let cached = LiveLineCache.lastLine(for: channel), lines.indices.contains(cached) {
+            line = cached; triedLines = [cached]
+        }
+        open(lines.isEmpty ? channel : lines[line])
+    }
+
+    /// Whether the channel is live TV (a platform room, or a playlist's channel): the low-latency buffer,
+    /// the pre-probe and the last-good line apply to it, and not to a video. `isLive` is only set once
+    /// `open` runs, so this is the same test for use before it.
+    private func isLiveChannel(_ channel: Channel) -> Bool {
+        LiveCatalog.isRoom(channel.url) || channel.group == L10n.text("Bilibili Live") || livePlaylist
     }
 
     /// Plays line `index` of the live channel, as the viewer chose: the others are there to fall back on again.
@@ -836,9 +891,11 @@ import IOKit.pwr_mgt
 
     private func open(_ channel: Channel) {
         savedDownload = channel.url.scheme == DownloadLibrary.scheme
-        stop(); error = nil; errorSymbol = "play.slash.fill"; loading = true; showsPicture = false; openedAt = .now; sourceDanmaku = []; qualities = []; quality = nil; switchNotice = nil
+        // The player is reused: the old channel keeps playing until the new item replaces it (B3).
+        // `stop()` keeps the full teardown for when the player closes.
+        resetForSwitch(); error = nil; errorSymbol = "play.slash.fill"; loading = true; showsPicture = false; openedAt = .now; sourceDanmaku = []; qualities = []; quality = nil; switchNotice = nil
         begin(channel)
-        isLive = LiveCatalog.isRoom(channel.url) || channel.group == L10n.text("Bilibili Live")
+        isLive = isLiveChannel(channel)
         liveRoom = LiveCatalog.isRoom(channel.url) ? channel : nil; liveReopen = LiveReopen(); liveRetrying = false; rangeRetried = false
         loopbackRecovered = nil; dropRecovery = PlaybackDropRecovery(); reopenedAfterDrop = false
         ErrorReports.shared.playing(live: isLive, format: channel.url.pathExtension, source: channel.historyContext?.sourceKey,
@@ -866,17 +923,34 @@ import IOKit.pwr_mgt
                 catch {
                     guard self.generation == activeGeneration, !Task.isCancelled else { return }
                     Diagnostics.shared.failure("player", "live room=\(channel.url.absoluteString)", error)
+                    self.player.pause()
                     self.error = error.localizedDescription; self.loading = false; return
                 }
             } else {
-                // A Huya stream a playlist reaches through an FLV relay plays as HLS.
-                channel = await LiveCatalog.playable(channel)
+                // A playlist's FLV relay resolves to HLS (B5): play the remembered address first, and refresh
+                // the resolution behind it; a room's address expires, so rooms never use the cache.
+                if let cached = LiveLineCache.resolvedURL(for: channel.url), !LiveCatalog.isRoom(cached) {
+                    let original = channel
+                    channel = Channel(name: channel.name, group: channel.group, url: cached, logo: channel.logo,
+                                      headers: channel.headers, skipScope: channel.skipScope,
+                                      historyContext: channel.historyContext, resumePosition: channel.resumePosition)
+                    self.resolvedFrom = original
+                    Task {
+                        let fresh = await LiveCatalog.playable(original)
+                        if fresh.url != original.url { LiveLineCache.store(resolved: fresh.url, for: original.url) }
+                    }
+                } else {
+                    let original = channel.url
+                    channel = await LiveCatalog.playable(channel)
+                    if channel.url != original { LiveLineCache.store(resolved: channel.url, for: original) }
+                }
             }
             let prepared: Prepared
             do { prepared = try await self.prepare(channel) }
             catch {
                 guard self.generation == activeGeneration, !Task.isCancelled else { return }
                 if self.tryNextLine(after: error) { return }
+                self.player.pause()
                 self.error = error.localizedDescription; self.loading = false; return
             }
             guard self.generation == activeGeneration, !Task.isCancelled else { return Self.stopAdapter(prepared) }
@@ -892,6 +966,7 @@ import IOKit.pwr_mgt
                     return
                 }
                 Diagnostics.shared.record(.warning, "player", "mkv original; no transcoded line")
+                self.player.pause()
                 self.error = L10n.text("This video is an MKV file, which Apple devices can't play."); self.loading = false; return
             }
             let address = prepared.url
@@ -966,6 +1041,11 @@ import IOKit.pwr_mgt
         let asset = CloudStreams.asset(for: url) ?? CENCStreams.asset(for: url) ?? DashStreams.asset(for: url) ?? LiveRepair.asset(for: url)
             ?? AVURLAsset(url: url, options: Self.assetOptions(headers: channel.headers))
         let item = AVPlayerItem(asset: asset)
+        // A live stream plays at its live edge, not behind a cushion: don't wait to minimize stalling,
+        // and keep only a second or two ahead (B6). A video keeps AVPlayer's own buffering; the player is
+        // reused across switches, so the video side restores the default explicitly.
+        player.automaticallyWaitsToMinimizeStalling = !isLive
+        item.preferredForwardBufferDuration = isLive ? 1.5 : 0
         if url.scheme == CloudStreams.scheme {
             // The duration sets how far ahead the file is read, on this device and for this bitrate (#702).
             Task { if let seconds = try? await asset.load(.duration).seconds { CloudStreams.setDuration(seconds, for: url) } }
@@ -1143,6 +1223,11 @@ import IOKit.pwr_mgt
                 if status == .readyToPlay {
                     if self.isLive { self.liveReadyAt = .now }
                     self.lineReadyAt = .now; self.lineWatch?.cancel(); self.lineWatch = nil
+                    if self.isLive {
+                        // The line that played is the one the next play starts on (B5).
+                        if self.lines.count > 1, let base = self.lines.first { LiveLineCache.record(line: self.line, for: base) }
+                        self.prewarmNeighbors()
+                    }
                     if UngroupedAudio.playOne(item) { Diagnostics.shared.record(.info, "player", "ungrouped audio tracks; playing the first") }
                     Task { [weak self] in
                         let choices = await UngroupedAudio.choices(item)
@@ -1178,6 +1263,7 @@ import IOKit.pwr_mgt
                     if self.reopenedAfterDrop, self.resumeAfterDrop(failure, channel: channel, url: url, generation: activeGeneration) { return }
                     Diagnostics.shared.record(.error, "player", "failed host=\(self.transfer.host ?? channel.url.host() ?? "-") \(self.transfer.failure.map { "upstream=\($0) " } ?? "")\(detail) \(self.failureContext(channel, url: url, item: item))")
                     if self.retryLive(after: failure) { return }
+                    if self.retryCachedAddress(after: failure) { return }
                     if self.tryNextLine(after: failure) { return }
                     // A refused link is usually an expired one: say so in plain words rather than the system's.
                     let expired = refused || [401, 403, 404, 410].contains(self.transfer.httpStatus ?? 0)
@@ -1372,6 +1458,59 @@ import IOKit.pwr_mgt
         }
         return text
     }
+    /// The state a switch clears, without tearing the player down: the old channel keeps playing until
+    /// the new item replaces it, so switching channels doesn't flash black and reload the player (B3).
+    /// The generation is still bumped and the old preparation cancelled, so a late answer can't land on
+    /// the new channel; the observers go with `detachItem`, as in `stop()`. `stop()` keeps the full
+    /// teardown for when the player closes.
+    private func resetForSwitch() {
+        if let part = bilibiliPart, let item, item.status == .readyToPlay {
+            let seconds = item.currentTime().seconds
+            Task { await BilibiliHeartbeat.shared.report(part, seconds: seconds, final: true) }
+        }
+        saveHistory()
+        discardUpcoming()
+        upcomingAttempted = false; skipsToUpcoming = false; advanced = nil
+        upcomingEpisode = nil; onAdvance = nil; playsOn = { false }; clearBoost()
+        if let url = playing?.url { CENCStreams.stop(url) }
+        if let automatic { CloudStreams.stop(automatic); Remux.stop(automatic) }
+        #if os(tvOS)
+        HDRDisplay.reset()
+        #endif
+        if playing != nil { ErrorReports.shared.stoppedPlaying() }
+        playing = nil
+        catalogDanmaku.clear()
+        externalSubtitles.stop()
+        subtitles.follow(nil)
+        historyContext = nil; pendingResume = nil; restoringPosition = false
+        requestedResumePosition = nil; restoredPosition = nil
+        skipScope = nil; skipSettings = EpisodeSkipSettings(); skipPass = EpisodeSkipPass()
+        skipNotice = nil; introNoticeUntil = nil
+        position = 0; duration = 0; editingSkip = false; resumeAfterEditing = false; seekingSegment = false
+        sourceSkips = []; skipOffer = nil; skippedSource = []; chapters = []; bilibiliPart = nil
+        onPlaybackEnded = nil; onUnplayableFile = nil
+        if player.currentItem != nil {
+            let seconds = player.currentTime().seconds
+            Diagnostics.shared.record(.info, "player", "stop at=\(seconds.isFinite ? Int(seconds) : -1)s")
+        }
+        generation = UUID()
+        chat?.stop(); chat = nil
+        preparation?.cancel(); preparation = nil
+        lineWatch?.cancel(); lineWatch = nil
+        sampler?.cancel(); sampler = nil
+        prewarmTask?.cancel(); prewarmTask = nil
+        resolvedFrom = nil
+        transfer = Transfer(); steps = []
+        #if os(macOS)
+        if let proxy { Task { await proxy.stop() } }; proxy = nil
+        #endif
+        observation = nil
+        timeObservation = nil
+        muteObservation = nil
+        buffering = false
+        detachItem()
+    }
+
     func stop() {
         #if os(macOS)
         displayAwake.hold(false)
@@ -1410,6 +1549,8 @@ import IOKit.pwr_mgt
         preparation?.cancel(); preparation = nil
         lineWatch?.cancel(); lineWatch = nil
         sampler?.cancel(); sampler = nil
+        prewarmTask?.cancel(); prewarmTask = nil
+        prewarmedChannel = nil; resolvedFrom = nil
         transfer = Transfer(); steps = []
         #if os(macOS)
         if let proxy { Task { await proxy.stop() } }; proxy = nil
@@ -1631,14 +1772,36 @@ extension PlaybackSession {
             prepared.adapter = adapter
         }
         #else
+        // A live channel's HLS is probed for sound AVPlayer can't decode (MP2) before it plays (B1): when the
+        // first segment needs repackaging, the stream opens repackaged from the start instead of failing in
+        // AVPlayer first and fetching the same stream twice. A stream that needs nothing plays directly.
+        if isLive, prepared.url == address, address.pathExtension.lowercased() == "m3u8", ["http", "https"].contains(address.scheme),
+           channel.url.scheme != DownloadLibrary.scheme, !Remux.isRemuxed(address),
+           let remuxed = await remuxProbe(address, headers: channel.headers) {
+            prepared.url = remuxed
+            return prepared
+        }
         // A video whose playlist carries spliced-in ads opens through the loader that cuts them (#567); any other plays as it is.
         if prepared.url == address, address.pathExtension.lowercased() == "m3u8", ["http", "https"].contains(address.scheme),
            channel.url.scheme != DownloadLibrary.scheme,
-           let routed = await AdSkip.route(address, headers: channel.headers.merging(CloudStreams.playlistHeaders(for: address) ?? [:]) { $1 }) {
+           let routed = await AdSkip.route(address, headers: channel.headers.merging(CloudStreams.playlistHeaders(for: address) ?? [:]) { $1 },
+                                           sourceKey: channel.historyContext?.sourceKey) {
             prepared.url = routed
         }
         #endif
         return prepared
+    }
+
+    /// The loopback address of a live HLS stream whose first segment needs repackaging (MP2 sound, HEVC
+    /// picture, ...), else nil. The probe's session is already serving when it succeeds, so its result is
+    /// reused, not downloaded again; a probe that fails (a slow server, a playlist the repackager doesn't
+    /// handle) plays as before, and the old failure-then-repackage path stays as the fallback.
+    private func remuxProbe(_ address: URL, headers: [String: String]) async -> URL? {
+        do { return try await HLSRemux.open(address, headers: headers) }
+        catch {
+            if !Task.isCancelled { Diagnostics.shared.record(.info, "player", "live probe host=\(address.host() ?? "-") \(Self.describe(error))") }
+            return nil
+        }
     }
 
     /// Why a Dolby Vision 5 file was refused: while the screen is mirrored or recorded iOS plays no HDR stream.

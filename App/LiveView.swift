@@ -202,6 +202,23 @@ struct ChannelListView: View {
     @State private var playlistGuide: String?
     @State private var guide: LiveGuide?
     @State private var editingGuide = false
+    /// The APTV page's tab (iOS, patch 14): channels, categories, or lines.
+    private enum LiveTab: String, CaseIterable { case channels, categories, lines }
+    @State private var tab: LiveTab = .channels
+    @State private var fullScreen = false
+    @State private var turnedFullScreen = false
+    @State private var containerWidth: CGFloat = 0
+    /// The player at the top of the page, so the line list can switch lines through it (B8).
+    @State private var playerSession: PlaybackSession?
+    /// The lines' measured latencies by address, from the last speed test (B8).
+    @State private var lineSpeeds: [String: Int] = [:]
+    @State private var measuringLines = false
+    /// The channel in the player at the top of the page: the one playing, when it is one of this source's.
+    private var playingChannel: Channel? {
+        guard let playing = store.playing else { return nil }
+        return channels.contains { $0.id == playing.id } ? playing : nil
+    }
+    private var playerHeight: CGFloat { (containerWidth > 0 ? containerWidth : 390) * 9 / 16 }
     private var waiting: Bool { channels.isEmpty && error == nil && (loading || !loaded) }
     private var groups: [String] { Array(Set(channels.map(\.group))).sorted() }
     private var filtered: [Channel] {
@@ -215,6 +232,8 @@ struct ChannelListView: View {
             .environment(guide)
             .modifier(GuideAddressAlert(isPresented: $editingGuide, source: source, automatic: source.guide ?? playlistGuide, saved: applyGuide))
             .task(id: source.id) { if !loaded { await load() } }
+        #elseif os(iOS)
+        aptvBody
         #else
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
@@ -260,6 +279,285 @@ struct ChannelListView: View {
         .modifier(GuideAddressAlert(isPresented: $editingGuide, source: source, automatic: source.guide ?? playlistGuide, saved: applyGuide))
         .task(id: source.id) { if !loaded { await load() } }
         #endif
+    }
+
+    /// The APTV-style live page (iOS, patch 14): the player pinned at the top, with 分类 / 频道 / 线路
+    /// below it. The channel plays at the top of the page instead of in the full-screen player
+    /// (`store.liveInlinePlayer`), and leaving the page ends its playback, as the watch page does.
+    /// The programme page waits for built-in EPG: the channel rows still show the current programme
+    /// from the playlist's own guide (`LiveGuide`).
+    private var aptvBody: some View {
+        ZStack(alignment: .top) {
+            if !fullScreen {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: playerHeight)
+                    if waiting {
+                        LoadingCard { .server(source.url.host(), title: L10n.text("Loading channels…")) }
+                        ChannelSkeletonGrid()
+                    } else if let error {
+                        ErrorState(
+                            title: L10n.text("Unable to Load Channels"),
+                            message: L10n.text("Try again, or choose another source to keep watching."),
+                            details: error,
+                            retry: { Task { await load() } },
+                            goBack: { dismiss() },
+                            busy: loading
+                        ).padding(.vertical, 24).tvFocusSection()
+                    } else if channels.isEmpty {
+                        EmptyResults(symbol: "magnifyingglass", title: L10n.text("No Matching Channels"))
+                    } else {
+                        tabBar
+                        tabContent
+                    }
+                }
+            }
+            playerSection
+                .frame(height: fullScreen ? nil : playerHeight)
+                .frame(maxWidth: .infinity, maxHeight: fullScreen ? .infinity : nil, alignment: .top)
+        }
+        .screenBackdrop()
+        .catalogSearchable(text: $query, prompt: L10n.text("Search channels")).screenTitle(source.name)
+        .toolbar(fullScreen ? .hidden : .visible, for: .navigationBar)
+        .toolbar {
+            Button { editingGuide = true } label: { Image(systemName: "calendar") }.accessibilityLabel(L10n.text("Program Guide"))
+            Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }.disabled(loading).accessibilityLabel(L10n.text("Refresh"))
+        }
+        .environment(guide)
+        .modifier(GuideAddressAlert(isPresented: $editingGuide, source: source, automatic: source.guide ?? playlistGuide, saved: applyGuide))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { containerWidth = $0 }
+        .task(id: source.id) {
+            if !loaded { await load(); autoplayFirst() }
+        }
+        .onChange(of: playingChannel?.id) { _, id in
+            if id == nil { playerSession = nil }
+            lineSpeeds = [:]
+        }
+        .onAppear {
+            store.liveInlinePlayer = true
+            PlayerOrientation.holdPortrait(true)
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        }
+        .onDisappear {
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
+            // Leaving the page ends its playback, as the full-screen player's Back does.
+            if playingChannel != nil { store.playing = nil }
+            store.liveInlinePlayer = false
+            if fullScreen { fullScreen = false; PlayerOrientation.set(landscape: false) }
+            turnedFullScreen = false
+            PlayerOrientation.holdPortrait(false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            phoneTurned()
+        }
+    }
+
+    /// Entering the page starts the first channel, as a TV does, when nothing is playing.
+    private func autoplayFirst() {
+        guard playingChannel == nil, let first = channels.first else { return }
+        watch(first)
+    }
+
+    @ViewBuilder private var playerSection: some View {
+        if let channel = playingChannel {
+            PlaybackView(channel: channel, watch: WatchPlayback(fullScreen: fullScreen, toggleFullScreen: setFullScreen,
+                                                                leave: { dismiss() },
+                                                                opened: { playerSession = $0 }))
+        } else {
+            ZStack {
+                Color.black
+                VStack(spacing: 8) {
+                    Image(systemName: "play.tv").font(.title).foregroundStyle(.white.opacity(0.6))
+                    Text(waiting ? L10n.text("Loading channels…") : "选择一个频道开始播放")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.7))
+                }
+            }
+        }
+    }
+
+    private var tabBar: some View {
+        Picker("", selection: $tab) {
+            Text("频道").tag(LiveTab.channels)
+            Text("分类").tag(LiveTab.categories)
+            Text("线路").tag(LiveTab.lines)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16).padding(.vertical, 10)
+    }
+
+    @ViewBuilder private var tabContent: some View {
+        switch tab {
+        case .channels: channelTab
+        case .categories: categoryTab
+        case .lines: lineTab
+        }
+    }
+
+    private var channelTab: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                filterBar
+                if filtered.isEmpty {
+                    EmptyResults(symbol: "magnifyingglass", title: L10n.text("No Matching Channels"))
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(filtered) { channel in
+                            APTVChannelRow(channel: channel, playing: playingChannel?.id == channel.id,
+                                           latency: LiveSpeedTest.cachedMs(for: channel),
+                                           favorite: store.isFavorite(channel),
+                                           play: { watch(channel) },
+                                           toggleFavorite: { store.toggleFavorite(channel) })
+                        }
+                    }
+                }
+            }.pageContainer()
+        }
+        .scrollIndicators(.never)
+    }
+
+    /// Each group and how many channels it holds, counted from the same list the channel tab shows,
+    /// so the totals can't disagree.
+    private var groupCounts: [(name: String, count: Int)] {
+        Dictionary(grouping: channels, by: \.group).map { (name: $0.key, count: $0.value.count) }.sorted { $0.name < $1.name }
+    }
+
+    private var categoryTab: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                categoryRow(title: "全部", count: channels.count, selected: group == nil) {
+                    group = nil; tab = .channels
+                }
+                ForEach(groupCounts, id: \.name) { item in
+                    categoryRow(title: item.name.isEmpty ? "未分组" : item.name, count: item.count, selected: group == item.name) {
+                        group = item.name; tab = .channels
+                    }
+                }
+            }.pageContainer()
+        }
+        .scrollIndicators(.never)
+    }
+
+    private func categoryRow(title: String, count: Int, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).font(.headline).foregroundStyle(.primary).lineLimit(1)
+                Spacer()
+                Text("\(count) 个频道").font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(selected ? Brand.accent.opacity(0.14) : Color.primary.opacity(0.05))
+            }
+        }.buttonStyle(.plain)
+    }
+
+    /// The address of the fastest line measured, for the line list's badge.
+    private var fastestLineURL: String? {
+        lineSpeeds.min(by: { $0.value < $1.value })?.key
+    }
+
+    private var lineTab: some View {
+        ScrollView {
+            if let session = playerSession, let channel = playingChannel {
+                let lines = session.lines.isEmpty ? [channel] : session.lines
+                LazyVStack(spacing: 8) {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        lineRow(line: line, index: index, current: index == session.line,
+                                latency: lineSpeeds[line.url.absoluteString],
+                                fastest: fastestLineURL == line.url.absoluteString,
+                                measuring: measuringLines) {
+                            session.choose(line: index)
+                        }
+                    }
+                    Button("重新测速") { Task { await measureLines(force: true) } }
+                        .buttonStyle(.bordered).disabled(measuringLines)
+                        .padding(.top, 8)
+                    Text("延迟为打开线路列表时实测的时延，仅供参考；默认选最快线路，点一条就切过去。")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+                }.pageContainer()
+            } else {
+                EmptyResults(symbol: "list.bullet", title: "先选一个频道，再查看它的线路")
+                    .padding(.top, 40)
+            }
+        }
+        .scrollIndicators(.never)
+        .task(id: tab) { if tab == .lines { await measureLines() } }
+        .task(id: playingChannel?.id) { if tab == .lines { await measureLines() } }
+    }
+
+    private func lineRow(line: Channel, index: Int, current: Bool, latency: Int?, fastest: Bool, measuring: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text("线路 \(index + 1)").font(.headline).foregroundStyle(.primary)
+                if fastest, latency != nil {
+                    Text("最快").font(.caption.weight(.semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Color.green, in: Capsule())
+                }
+                Spacer()
+                if current {
+                    Text("播放中").font(.caption.weight(.semibold)).foregroundStyle(Brand.accent)
+                }
+                if let latency {
+                    Text("测速时延 \(latency) ms").font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(Color.green)
+                } else if measuring {
+                    Text("测速中…").font(.subheadline).foregroundStyle(.secondary)
+                } else {
+                    Text("未测速").font(.subheadline).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(current ? Brand.accent.opacity(0.14) : Color.primary.opacity(0.05))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(current ? Brand.accent.opacity(0.6) : Color.clear, lineWidth: 1.5)
+            }
+        }.buttonStyle(.plain)
+    }
+
+    /// Measures the playing channel's lines in parallel (B8): only when the line list opens, and again
+    /// on re-test; results within 10 minutes are reused.
+    private func measureLines(force: Bool = false) async {
+        guard let session = playerSession, let channel = playingChannel, !measuringLines else { return }
+        measuringLines = true
+        defer { measuringLines = false }
+        let lines = session.lines.isEmpty ? [channel] : session.lines
+        lineSpeeds = await LiveSpeedTest.measure(lines, force: force)
+    }
+
+    private func setFullScreen(landscape: Bool) {
+        let entering = !fullScreen
+        // A button's Full Screen stays until the viewer leaves it; turning the phone back upright ends only a
+        // Full Screen the turning opened.
+        if !entering { turnedFullScreen = false }
+        withAnimation(.smooth(duration: 0.3)) { fullScreen = entering }
+        // A landscape picture turns the phone; a portrait one fills the screen upright.
+        if !entering { PlayerOrientation.set(landscape: false) } else if landscape { PlayerOrientation.set(landscape: true) }
+    }
+
+    /// Turning the phone sideways while a channel plays opens Full Screen, as the player's button does, and turning
+    /// it upright again returns to the page. The page holds the interface upright (`PlayerOrientation`), so it
+    /// doesn't turn by itself: this listens to the phone's own turning instead.
+    private func phoneTurned() {
+        guard playingChannel != nil, PlayerOrientation.available else { return }
+        switch UIDevice.current.orientation {
+        case .landscapeLeft, .landscapeRight:
+            guard !fullScreen else { return }
+            turnedFullScreen = true
+            setFullScreen(landscape: true)
+        case .portrait:
+            guard fullScreen, turnedFullScreen else { return }
+            setFullScreen(landscape: false)
+        default:
+            break
+        }
     }
     private var filterBar: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -874,6 +1172,79 @@ struct ChannelCard: View {
         }
         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
         .contentPanel()
+    }
+}
+
+/// A live channel as APTV lists it (patch 14): logo, name, what's on now and when it ends, the measured
+/// latency in green, and a heart; the channel playing is highlighted.
+private struct APTVChannelRow: View {
+    let channel: Channel
+    let playing: Bool
+    let latency: Int?
+    let favorite: Bool
+    let play: () -> Void
+    let toggleFavorite: () -> Void
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: play) {
+                HStack(spacing: 12) {
+                    ChannelLogo(channel: channel, size: 44)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(channel.name).font(.headline).foregroundStyle(.primary).lineLimit(1)
+                        NowOnEndText(channel: channel, otherwise: channel.displayGroup)
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    if let latency {
+                        Text("\(latency) ms").font(.subheadline.weight(.semibold)).monospacedDigit()
+                            .foregroundStyle(Color.green)
+                    }
+                    if playing {
+                        Image(systemName: "speaker.wave.2.fill").font(.subheadline).foregroundStyle(Brand.accent)
+                    }
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            Button(action: toggleFavorite) {
+                Image(systemName: favorite ? "heart.fill" : "heart")
+                    .font(.title3).foregroundStyle(favorite ? Brand.rose : .secondary)
+                    .frame(width: 44, height: 44).contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(favorite ? "取消收藏 \(channel.name)" : "收藏 \(channel.name)")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(playing ? Brand.accent.opacity(0.14) : Color.primary.opacity(0.05))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(playing ? Brand.accent.opacity(0.6) : Color.clear, lineWidth: 1.5)
+        }
+    }
+}
+
+/// What's on the channel now, with when it ends ("新闻联播 · 19:30 结束"), or `otherwise` without a
+/// guide or a programme (patch 14). The programme comes from the playlist's own guide (`LiveGuide`).
+private struct NowOnEndText: View {
+    let channel: Channel
+    var otherwise: String? = nil
+    @Environment(LiveGuide.self) private var guide: LiveGuide?
+    var body: some View {
+        let schedule = guide?.schedule(for: channel) ?? []
+        Group {
+            if schedule.isEmpty {
+                if let otherwise { Text(otherwise) }
+            } else {
+                TimelineView(ProgrammeTimes(schedule)) { context in
+                    if let now = schedule.now(at: context.date) {
+                        Text("\(now.title) · \(now.end, format: .dateTime.hour().minute()) 结束")
+                    } else if let otherwise { Text(otherwise) }
+                }
+            }
+        }
+        .task(id: channel.name) { await guide?.fetch(channel) }
     }
 }
 

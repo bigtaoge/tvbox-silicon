@@ -1932,6 +1932,13 @@ extension Store {
     session.skipDefaults = store.playbackDefaults
     session.catalogDanmaku.enabled = UserDefaults.standard.object(forKey: DanmakuPreference.key) == nil
         || UserDefaults.standard.bool(forKey: DanmakuPreference.key)
+    // A live playlist's channel (not just a platform room): its low-latency buffer, the pre-probe and
+    // the last-good line apply to it (patch 14). The neighbours come from the list it was picked from.
+    session.livePlaylist = store.liveLineup?.position(of: channel) != nil
+    session.neighborChannels = { [weak store] channel in
+        guard let lineup = store?.lineup(for: channel) else { return (nil, nil) }
+        return (lineup.neighbor(of: channel, back: true), lineup.neighbor(of: channel, back: false))
+    }
     session.start(channel)
     session.onPlaybackEnded = { [weak store] in
         guard let store, store.autoPlayNext else { return }
