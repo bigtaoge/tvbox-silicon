@@ -170,10 +170,10 @@ public struct ProgramGuide: Sendable {
 
     // MARK: DIYP
 
-    static let chinaTime = TimeZone(identifier: "Asia/Shanghai")!
+    public static let chinaTime = TimeZone(identifier: "Asia/Shanghai")!
 
     /// `2026-11-14` in China's time zone.
-    static func dayString(_ date: Date) -> String {
+    public static func dayString(_ date: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = chinaTime
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
