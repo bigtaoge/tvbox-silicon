@@ -48,6 +48,9 @@ typealias MusicTrack = TVCore.MusicTrack
     /// tvOS shows playback full screen, where the remote reaches every control; set when a song
     /// starts, and by Now Playing.
     var presentsPlayer = false
+    /// The Now Playing sheet opens on the lyrics panel next time it appears, set by openLyrics()
+    /// and taken by the sheet on appear; plain playback leaves it off, so the sheet opens on the cover.
+    var openLyricsOnPresent = false
     /// What the Mac's Now Playing shows beside the cover.
     var nowPlayingPanel: MusicNowPlayingPanel = .lyrics
     /// Off, the whole queue again, or the one song again; remembered across launches.
@@ -216,6 +219,14 @@ typealias MusicTrack = TVCore.MusicTrack
         if UserDefaults.standard.bool(forKey: "qaMusicStayOnPage") { presentsPlayer = false }
         #endif
         #endif
+    }
+
+    /// Opens Now Playing straight onto the lyrics panel, from the Music page's lyrics card.
+    /// The card is only reachable while a song is playing, so this never starts playback.
+    func openLyrics() {
+        nowPlayingPanel = .lyrics
+        openLyricsOnPresent = true
+        presentsPlayer = true
     }
 
     /// Continues where listening stopped, even after the app was closed.

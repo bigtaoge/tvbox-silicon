@@ -341,6 +341,7 @@ private struct MusicHome: View {
         if let track = store.music.track {
             MusicNowPlayingLink(track: track).padding(.bottom, 20)
         }
+        MusicHomeLyricsCard().padding(.bottom, 20)
         #endif
         let liked = store.favorites.musicTracks.count
         if liked > 0 { MusicLikedLink(count: liked).padding(.bottom, 20) }
@@ -463,6 +464,86 @@ private struct MusicNowPlayingLink: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+#endif
+
+#if !os(tvOS)
+/// The lyrics of the song playing now, on the Music page between Now Playing and Liked Songs:
+/// the line before, the line being sung (bold, with a green dot) and the next one, following
+/// playback; tapping it opens Now Playing on the lyrics panel. With nothing playing it says so,
+/// and with no lyrics it says that instead.
+private struct MusicHomeLyricsCard: View {
+    @Environment(Store.self) private var store
+
+    var body: some View {
+        let music = store.music
+        Group {
+            if music.track == nil {
+                content(music)
+            } else {
+                Button { music.openLyrics() } label: { content(music) }
+                    .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder private func content(_ music: MusicPlaybackSession) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("歌词").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Spacer()
+                if let lyrics = music.lyrics {
+                    Text(lyrics.platform.name).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if music.track == nil {
+                Text("播放歌曲后这里显示歌词").font(.subheadline).foregroundStyle(.secondary)
+            } else if let lyrics = music.lyrics {
+                lyricLines(lyrics, current: music.currentLyric)
+            } else if music.lyricsLoading || music.busy {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("正在加载歌词…").font(.subheadline).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("暂无歌词").font(.headline)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentPanel(cornerRadius: 20)
+        .contentShape(Rectangle())
+    }
+
+    /// The three lines around the line being sung; unsynced lyrics have no line being sung,
+    /// so the first three show plain.
+    @ViewBuilder private func lyricLines(_ lyrics: MusicLyrics, current: Int?) -> some View {
+        let lines = lyrics.lines
+        if let current, lines.indices.contains(current) {
+            VStack(alignment: .leading, spacing: 4) {
+                if current > 0 { lyricLine(lines[current - 1].text, prominent: false) }
+                HStack(spacing: 6) {
+                    Circle().fill(Color.green).frame(width: 6, height: 6)
+                    lyricLine(lines[current].text, prominent: true)
+                }
+                if current + 1 < lines.count { lyricLine(lines[current + 1].text, prominent: false) }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(lines.prefix(3).enumerated()), id: \.offset) { _, line in
+                    lyricLine(line.text, prominent: false)
+                }
+            }
+        }
+    }
+
+    private func lyricLine(_ text: String, prominent: Bool) -> some View {
+        Text(text.isEmpty ? "♪" : text)
+            .font(prominent ? .headline : .subheadline)
+            .fontWeight(prominent ? .bold : .regular)
+            .foregroundStyle(prominent ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            .lineLimit(1)
     }
 }
 #endif

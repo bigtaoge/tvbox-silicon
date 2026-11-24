@@ -2,9 +2,9 @@
 import SwiftUI
 import TVCore
 
-/// Lyrics on the Now Playing screen, as Music shows them: large and bold, the line being sung
-/// bright and held a third of the way down, the rest faded. Tapping a line plays from it. Without
-/// lyrics the panel says so in the same space, so nothing around it moves.
+/// Lyrics on the Now Playing screen, as the big music apps show them: the cover blurred behind,
+/// large lines, the line being sung big, white and bold in the middle, the rest faded. Tapping a
+/// line plays from it. Without lyrics the panel says so in the same space, so nothing around it moves.
 struct MusicNowPlayingLyrics: View {
     @Environment(Store.self) private var store
     @State private var scrolled: Int?
@@ -22,16 +22,16 @@ struct MusicNowPlayingLyrics: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: spacing) {
                     ForEach(Array(lyrics.lines.enumerated()), id: \.offset) { index, line in
-                        let faded = lyrics.synced && index != music.currentLyric
+                        let current = lyrics.synced && index == music.currentLyric
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(line.text.isEmpty ? "♪" : line.text).font(.system(size: size, weight: .bold))
+                            Text(line.text.isEmpty ? "♪" : line.text).font(.system(size: current ? size + 8 : size, weight: .bold))
                             if showsTranslation, let translation = line.translation {
                                 Text(translation).font(.system(size: translationSize, weight: .semibold))
                             }
                         }
-                        .foregroundStyle(.white.opacity(faded ? 0.32 : 1))
+                        .foregroundStyle(.white.opacity(current ? 1 : 0.32))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .animation(.easeOut(duration: 0.3), value: faded)
+                        .animation(.easeOut(duration: 0.3), value: current)
                         .contentShape(.rect)
                         .onTapGesture { if lyrics.synced { music.seek(toLyric: line) } }
                         .id(index)
@@ -41,11 +41,21 @@ struct MusicNowPlayingLyrics: View {
                 .scrollTargetLayout()
                 .padding(.vertical, 28)
             }
-            .scrollPosition(id: $scrolled, anchor: UnitPoint(x: 0.5, y: 0.3))
+            .scrollPosition(id: $scrolled, anchor: UnitPoint(x: 0.5, y: 0.5))
             // The lines fade in and out at the panel's edges instead of being cut.
             .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.07),
                                          .init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
                                  startPoint: .top, endPoint: .bottom))
+            // The cover, blurred and darkened, behind the lines, as the big music apps do.
+            .background {
+                ZStack {
+                    MusicArtwork(url: music.track?.artwork, cornerRadius: 0)
+                        .blur(radius: 50)
+                        .scaleEffect(1.5)
+                    Color.black.opacity(0.5)
+                }
+            }
+            .clipShape(Rectangle())
             // Once the lines are laid out: set as the panel appeared, the position was dropped, and
             // reopening the player left the lyrics at the top until the next line.
             .task { try? await Task.sleep(for: .milliseconds(60)); scrolled = music.currentLyric }

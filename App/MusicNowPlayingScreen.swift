@@ -62,6 +62,8 @@ struct MusicNowPlayingScreen: View {
             }
         }
         .onChange(of: music.track == nil) { _, gone in if gone { dismiss() } }
+        .onAppear { takeLyricsRequest(music) }
+        .onChange(of: music.openLyricsOnPresent) { _, requested in if requested { takeLyricsRequest(music) } }
         #if DEBUG
         .onAppear {
             switch UserDefaults.standard.string(forKey: "qaNowPlaying") {
@@ -204,6 +206,14 @@ struct MusicNowPlayingScreen: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L10n.text(label))
+    }
+
+    /// The Music page's lyrics card asked to open on the lyrics panel: take the request once,
+    /// so a later plain open shows the cover again.
+    private func takeLyricsRequest(_ music: MusicPlaybackSession) {
+        guard music.openLyricsOnPresent else { return }
+        music.openLyricsOnPresent = false
+        panel = .lyrics
     }
 
     private var bottomBar: some View {
