@@ -1213,6 +1213,9 @@ private struct HiddenSourceRow: View {
 struct SiteView: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
+    /// Pushes the global search page. Set by the enclosing RouteStack; nil where
+    /// the page is shown without one, and the search then stays local.
+    @Environment(\.openRoute) private var openRoute
     let site: Site
     let origin: URL
     let jarURL: URL?
@@ -1443,11 +1446,11 @@ struct SiteView: View {
     private func searchGlobally() {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        guard let config = store.subscription else { startRequest { await search() }; return }
+        guard let config = store.subscription, let openRoute else { startRequest { await search() }; return }
         store.searchModel.search(text, config: config) { [store] site in
             store.hiddenSources.contains(site, origin: config.origin)
         }
-        openRoute?(Route { AnyView(GlobalSearchView()) })
+        openRoute(Route { AnyView(GlobalSearchView()) })
         query = ""
     }
 
