@@ -8,6 +8,21 @@ public enum AdSkip {
     public static let key = "player.skipAds"
     public static var enabled: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
 
+    /// Sources whose playlists were checked and showed no ads: checked once, then skipped (`route`).
+    /// A source that showed ads stays checked every time, since an ad run comes and goes. The memory
+    /// lives in this launch only; a relaunch checks again, so a source that starts splicing ads is
+    /// caught then (patch 14, B2).
+    private static var cleanKeys = Set<String>()
+    private static var adsKeys = Set<String>()
+    private static let memoryLock = NSLock()
+
+    /// The memory key for a playlist: its source when known (a video source's key), else its host. A live
+    /// playlist and a video playlist never share a key, so a clean live host doesn't let a video's ads through.
+    private static func memoryKey(_ url: URL, sourceKey: String?) -> String {
+        if let sourceKey, !sourceKey.isEmpty { return "src:" + sourceKey }
+        return "host:" + (url.host()?.lowercased() ?? url.absoluteString)
+    }
+
     /// A run is an ad only when it is this short ...
     static let longestRun = 60.0
     /// ... all the runs removed are this share of the video at most ...
@@ -107,11 +122,14 @@ public enum AdSkip {
 
     /// The address to open so the playlist's ads are cut (`LiveRepair`'s loader does it), or nil when the video's playlist
     /// has none, can't be read in a few seconds, or is not one this applies to. A master playlist is judged by its first
-    /// variant; the loader then cleans each variant it is asked for.
-    public static func route(_ url: URL, headers: [String: String]) async -> URL? {
+    /// variant; the loader then cleans each variant it is asked for. A source whose playlists were checked and showed
+    /// no ads is skipped (B2); a source that showed ads is checked every time.
+    public static func route(_ url: URL, headers: [String: String], sourceKey: String? = nil) async -> URL? {
         guard enabled else { return nil }
+        let key = memoryKey(url, sourceKey: sourceKey)
+        if memoryLock.withLock({ cleanKeys.contains(key) }) { return nil }
         func fetch(_ address: URL) async -> (String, URL)? {
-            var request = URLRequest(url: address, timeoutInterval: 6)
+            var request = URLRequest(url: address, timeoutInterval: 3)
             headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
             guard let (data, response) = try? await URLSession.shared.data(for: request),
                   (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? false,
@@ -127,7 +145,12 @@ public enum AdSkip {
                   let next = await fetch(address) else { return nil }
             (text, origin) = next
         }
-        guard let result = clean(text, origin: origin) else { return nil }
+        guard let result = clean(text, origin: origin) else {
+            // Checked and clean: don't pay the fetch again for this source.
+            memoryLock.withLock { cleanKeys.insert(key) }
+            return nil
+        }
+        memoryLock.withLock { adsKeys.insert(key); cleanKeys.remove(key) }
         Diagnostics.shared.record(.info, "player", "ads found runs=\(result.runs) seconds=\(Int(result.seconds)) host=\(result.host)")
         return LiveRepair.address(url, headers: headers, skipsAds: true)
     }
