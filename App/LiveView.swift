@@ -209,7 +209,10 @@ struct ChannelListView: View {
     @State private var turnedFullScreen = false
     @State private var containerWidth: CGFloat = 0
     /// The player at the top of the page, so the line list can switch lines through it (B8).
-    @State private var playerSession: PlaybackSession?
+    /// Either session type: the AVPlayer one, or the VLC one (patch 19). The line tab and
+    /// `measureLines` only read `lines`/`line` and call `choose(line:)`, which LivePlayerSession
+    /// carries, so they work whichever player a channel uses.
+    @State private var playerSession: (any LivePlayerSession)?
     /// The lines' measured latencies by address, from the last speed test (B8).
     @State private var lineSpeeds: [String: Int] = [:]
     @State private var measuringLines = false
@@ -361,9 +364,23 @@ struct ChannelListView: View {
 
     @ViewBuilder private var playerSection: some View {
         if let channel = playingChannel {
+            #if os(iOS)
+            // A playlist channel plays in VLC (patch 19): it decodes MP2 in the player instead of
+            // remuxing. A platform room, or a channel whose headers VLC can't send, stays on AVPlayer.
+            if LiveCatalog.isRoom(channel.url) || !VLCLiveSession.supports(channel: channel) {
+                PlaybackView(channel: channel, watch: WatchPlayback(fullScreen: fullScreen, toggleFullScreen: setFullScreen,
+                                                                    leave: { dismiss() },
+                                                                    opened: { playerSession = $0 }))
+            } else {
+                VLCLivePlaybackView(channel: channel, watch: WatchPlayback(fullScreen: fullScreen, toggleFullScreen: setFullScreen,
+                                                                          leave: { dismiss() }),
+                                    opened: { playerSession = $0 })
+            }
+            #else
             PlaybackView(channel: channel, watch: WatchPlayback(fullScreen: fullScreen, toggleFullScreen: setFullScreen,
                                                                 leave: { dismiss() },
                                                                 opened: { playerSession = $0 }))
+            #endif
         } else {
             ZStack {
                 Color.black
