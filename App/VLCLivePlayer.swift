@@ -44,8 +44,12 @@ extension PlaybackSession: LivePlayerSession {}
 
     /// Whether VLC can send every header the channel and its lines need: only User-Agent and Referer
     /// map to libVLC options. Anything else falls back to the AVPlayer path for that channel.
+    /// TEST BUILD 2026-11-25: VLC OFF — diagnosing the subscription-pull crash. The framework
+    /// stays embedded (dyld still loads it); no VLCLiveSession is ever created, so no VLC code
+    /// runs. If subscriptions still crash on this build, the trigger is the framework's presence,
+    /// not the VLC code; if they stop crashing, the trigger is the VLC code path.
     static func supports(channel: Channel) -> Bool {
-        channel.lines.allSatisfy { supports(headers: $0.headers) }
+        false
     }
     static func supports(headers: [String: String]) -> Bool {
         headers.keys.allSatisfy { ["user-agent", "referer"].contains($0.lowercased()) }
