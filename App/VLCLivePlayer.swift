@@ -67,9 +67,11 @@ extension PlaybackSession: LivePlayerSession {}
         set { player.rate = newValue }
     }
     /// Audio volume (0–200 in libVLC; 100 is the usual level).
+    /// NOTE: VLCAudio.volume is ObjC `int`, which Swift imports as `Int32`,
+    /// not `Int` — convert at the boundary (build fix 2026-11-25).
     var volume: Int {
-        get { player.audio?.volume ?? 100 }
-        set { player.audio?.volume = newValue }
+        get { Int(player.audio?.volume ?? 100) }
+        set { player.audio?.volume = Int32(newValue) }
     }
 
     /// When the line playing became ready. One that isn't ready after `lineWait` gives way to the next.
