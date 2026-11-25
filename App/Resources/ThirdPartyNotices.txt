@@ -770,6 +770,13 @@ Simple XML 2.7.1
 https://simple.sourceforge.net
 Apache License 2.0. Runtime dependency of sardine-android.
 
+MobileVLCKit 3.7.5 (VLCKit)
+https://code.videolan.org/videolan/VLCKit
+
+GNU Lesser General Public License version 2.1 or later (LGPLv2.1+). Used only by the
+live TV player, dynamically linked, so the library can be replaced. The full license
+text ships in the MobileVLCKit framework (COPYING.txt); the source is at videolan.org.
+
 Exact source revisions, source URLs, build inputs and platform modifications
 are recorded in Scripts/build-apple-*.sh and Runtime/AppleRuntime/patches.
 These notices do not replace the accompanying upstream licence texts.
