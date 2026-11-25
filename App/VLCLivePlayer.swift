@@ -87,6 +87,10 @@ extension PlaybackSession: LivePlayerSession {}
     private var lineChannel: Channel?
     private var playingReported = false
     private var lastNowPlayingUpdate: Date?
+    /// The last playback clock seen from timeChanged: the clock advancing is the ground truth
+    /// that frames render. libVLC can keep a live HLS stream in the buffering state while it
+    /// plays, which would leave the waiting overlay up forever (fix 2, 2026-11-25).
+    private var lastTimeMs: Int32 = 0
 
     /// The one persistent player: channel switches only swap its media, never the player.
     let player = VLCMediaPlayer()
@@ -174,7 +178,7 @@ extension PlaybackSession: LivePlayerSession {}
         let activeGeneration = generation
         lineWatch?.cancel(); lineWatch = nil
         preparation?.cancel(); preparation = nil
-        lineReadyAt = nil; playingReported = false
+        lineReadyAt = nil; playingReported = false; lastTimeMs = 0
         error = nil; notice = nil
         state = .opening
         lineChannel = channel
@@ -253,6 +257,24 @@ extension PlaybackSession: LivePlayerSession {}
         Task { @MainActor [weak self] in self?.refreshNowPlayingTime() }
     }
 
+    /// The playing bookkeeping, shared by the state callback and the clock callback:
+    /// the line is ready, the line is remembered, Now Playing starts.
+    private func markPlaying() {
+        state = .playing
+        error = nil
+        if lineReadyAt == nil {
+            lineReadyAt = .now
+            // The line played: remember it, so the next play starts there (as PlaybackSession.watch).
+            if lines.count > 1, let base = baseChannel { LiveLineCache.record(line: line, for: base) }
+        }
+        if !playingReported {
+            playingReported = true
+            Diagnostics.shared.record(.info, "player", "vlc playing name=\(channel?.name ?? "-")")
+            nowPlaying.start(session: self)
+        }
+        nowPlaying.update(title: channel?.name, session: self)
+    }
+
     /// The player's state, read back on the MainActor: drives the waiting UI, the line fallback,
     /// and Now Playing. Notifications that arrive after stop() are ignored (state is .idle then).
     /// The state is read fresh from the player, not from the notification, so a stale notification
@@ -265,19 +287,7 @@ extension PlaybackSession: LivePlayerSession {}
         case .buffering:
             state = .buffering
         case .playing:
-            state = .playing
-            error = nil
-            if lineReadyAt == nil {
-                lineReadyAt = .now
-                // The line played: remember it, so the next play starts there (as PlaybackSession.watch).
-                if lines.count > 1, let base = baseChannel { LiveLineCache.record(line: line, for: base) }
-            }
-            if !playingReported {
-                playingReported = true
-                Diagnostics.shared.record(.info, "player", "vlc playing name=\(channel?.name ?? "-")")
-                nowPlaying.start(session: self)
-            }
-            nowPlaying.update(title: channel?.name, session: self)
+            markPlaying()
         case .paused:
             state = .paused
             nowPlaying.update(title: nil, session: self)
@@ -304,7 +314,15 @@ extension PlaybackSession: LivePlayerSession {}
     }
 
     /// Now Playing's elapsed time, at most once every 5 seconds: timeChanged fires far more often.
+    /// The clock advancing is also the ground truth that the stream is playing: libVLC can keep
+    /// a live HLS stream in the buffering state while frames render, which left the waiting
+    /// overlay up forever. Once the clock moves, mark it playing (fix 2, 2026-11-25).
     private func refreshNowPlayingTime() {
+        let ms = player.time.intValue
+        if (state == .opening || state == .buffering), ms > lastTimeMs {
+            markPlaying()
+        }
+        lastTimeMs = max(lastTimeMs, ms)
         guard state == .playing else { return }
         let now = Date()
         if let last = lastNowPlayingUpdate, now.timeIntervalSince(last) < 5 { return }
