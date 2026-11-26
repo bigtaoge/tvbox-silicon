@@ -179,7 +179,7 @@ private enum VLCPlayerState: Int {
         // NSObject.alloc is unavailable in Swift, so ask for it through performSelector:
         // the class object answers it like any NSObject. The +1 from alloc is handed to
         // initWithURL: below, as in [[VLCMedia alloc] initWithURL:].
-        let allocated = (mediaClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue()
+        guard let allocated = (mediaClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue() else { return false }
         guard let media = allocated.perform(NSSelectorFromString("initWithURL:"), with: url)?.takeRetainedValue() as? NSObject else { return false }
         media.perform(NSSelectorFromString("addOptions:"), with: options as NSDictionary)
         rawPlayer.setValue(media, forKey: "media")
