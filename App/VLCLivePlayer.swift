@@ -176,7 +176,10 @@ private enum VLCPlayerState: Int {
     func setMedia(url: URL, options: [String: Any]) -> Bool {
         guard let mediaClass = NSClassFromString("VLCMedia") as? NSObject.Type,
               let rawPlayer else { return false }
-        let allocated = mediaClass.alloc()
+        // NSObject.alloc is unavailable in Swift, so ask for it through performSelector:
+        // the class object answers it like any NSObject. The +1 from alloc is handed to
+        // initWithURL: below, as in [[VLCMedia alloc] initWithURL:].
+        let allocated = (mediaClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue()
         guard let media = allocated.perform(NSSelectorFromString("initWithURL:"), with: url)?.takeRetainedValue() as? NSObject else { return false }
         media.perform(NSSelectorFromString("addOptions:"), with: options as NSDictionary)
         rawPlayer.setValue(media, forKey: "media")
@@ -360,7 +363,7 @@ private enum VLCPlayerState: Int {
             // VLCRuntime), and the JVM is pre-warmed first so its heap is reserved
             // before VLC's framework is mapped in. Already-loaded is a no-op.
             if !self.player.isReady {
-                guard (try? await self.player.prepare(delegate: self)) == true else {
+                guard await self.player.prepare(delegate: self) else {
                     guard self.generation == activeGeneration, !Task.isCancelled else { return }
                     self.state = .error
                     self.error = L10n.text("Live playback isn't available right now.")
