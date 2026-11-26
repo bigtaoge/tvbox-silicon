@@ -24,9 +24,19 @@ post_install do |installer|
   # generated xcconfigs keeps dyld from loading it at launch; the
   # "[CP] Embed Pods Frameworks" phase still copies it into the bundle.
   # The workflow verifies both halves after the archive (embedded, not linked).
-  Dir.glob("Pods/Target Support Files/TVBox-iOS/Pods-TVBox-iOS.*.xcconfig").each do |path|
+  # The ** glob is deliberate: the Pods target is "Pods-TVBox-iOS", so its
+  # support files live under "Pods/Target Support Files/Pods-TVBox-iOS/"
+  # (not "TVBox-iOS/"). The old "TVBox-iOS" glob silently matched nothing
+  # (2026-11-27) and the app still linked the framework, failing the
+  # verify step. Fail loudly here instead, so a future layout change
+  # breaks pod install with a clear message rather than the archive.
+  configs = Dir.glob("Pods/Target Support Files/**/Pods-TVBox-iOS.*.xcconfig")
+  raise "post_install: no Pods-TVBox-iOS xcconfig found to strip MobileVLCKit from" if configs.empty?
+  configs.each do |path|
     text = File.read(path)
     next unless text.include?("MobileVLCKit")
-    File.write(path, text.gsub(/\s*-framework\s+"?MobileVLCKit"?/, ""))
+    stripped = text.gsub(/\s*-framework\s+"?MobileVLCKit"?/, "")
+    File.write(path, stripped)
+    raise "post_install: could not strip -framework MobileVLCKit from #{path}" if stripped.match?(/-framework\s+"?MobileVLCKit"?/)
   end
 end
