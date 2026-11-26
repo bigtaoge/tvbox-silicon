@@ -45,13 +45,19 @@ private enum VLCRuntime {
     }
 
     /// dlopens the framework (once) and checks the two classes the player needs.
+    /// RTLD_GLOBAL (not RTLD_LOCAL): libVLC loads its decoder/demuxer plugins
+    /// itself, and they resolve their symbols through the global scope — with
+    /// RTLD_LOCAL the plugins cannot load, libvlc fails to start, and the player
+    /// init below returns nil (live TV crashed on tap, no picture, 2026-11-27).
+    /// The app's own FFmpeg is statically linked, so its calls are already bound
+    /// to its own copy; making VLC's symbols global does not rebind them.
     /// Fast; call it off the main thread anyway, because the JVM pre-warm it runs
     /// after can take a second.
     static func load() -> Bool {
         lock.lock()
         defer { lock.unlock() }
         if loaded { return true }
-        guard let handle = dlopen(frameworkPath, RTLD_NOW | RTLD_LOCAL) else {
+        guard let handle = dlopen(frameworkPath, RTLD_NOW | RTLD_GLOBAL) else {
             let reason = dlerror().map { String(cString: $0) } ?? "unknown error"
             Diagnostics.shared.record(.error, "player", "vlc dlopen failed: \(reason)")
             return false
@@ -125,7 +131,12 @@ private enum VLCPlayerState: Int {
         }.value
         guard loaded else { return false }
         guard let playerClass = NSClassFromString("VLCMediaPlayer") as? NSObject.Type else { return false }
-        let player = playerClass.init()
+        // Build the player as [[VLCMediaPlayer alloc] init] through performSelector:
+        // a plain playerClass.init() traps (crashes) if the ObjC init returns nil
+        // (libvlc failed to start), while perform returns nil and degrades to an
+        // error overlay instead. This was the live-TV tap crash (2026-11-27).
+        guard let allocated = (playerClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue() else { return false }
+        guard let player = allocated.perform(NSSelectorFromString("init"))?.takeRetainedValue() as? NSObject else { return false }
         player.setValue(delegate, forKey: "delegate")
         rawPlayer = player
         return true
