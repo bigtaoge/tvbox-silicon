@@ -5,7 +5,8 @@ options:
   knownRegions: [en, zh-Hans, zh-Hant, ja]
   deploymentTarget:
     macOS: '15.0'
-    iOS: '17.0'
+    # AetherEngine 7.76.0 要求 iOS 18.0（tvOS 不动，验证只做 iOS）。
+    iOS: '18.0'
     tvOS: '17.0'
 settings:
   base:
@@ -39,6 +40,12 @@ packages:
   ColorfulX:
     url: https://github.com/Lakr233/ColorfulX
     exactVersion: 6.2.1
+  # 直播验证：AetherEngine 7.76.0（LGPL-3.0 + App Store 例外），FFmpeg 8.1，
+  # 明确支持 MP2 解码。只挂给 PlayerEngineKit（iOS），不挂给 App；
+  # traits 全默认关闭（XcodeGen 表达不了 traits，最小验证也不需要可选组件）。
+  AetherEngine:
+    url: https://github.com/superuser404notfound/AetherEngine
+    from: 7.76.0
 targetTemplates:
   SharedApp:
     type: application
@@ -63,6 +70,20 @@ targetTemplates:
         UILaunchScreen: {}
         UIBackgroundModes: [audio]
 targets:
+  PlayerEngineKit:
+    # AetherEngine 的隔离层（installation.md "FFmpeg in the same app"）：
+    # App 里已有一份静态 FFmpeg（TVCore 链接的 Vendor/FFmpeg），它的符号会成为
+    # 可执行文件里的定义，静态链接的引擎会绑定到它而不是 FFmpegBuild 的。
+    # 所以引擎不直接链进 App，而是链进这个动态 framework；App 只和它说话。
+    # type: framework 在 XcodeGen 里就是动态 framework，必须保持动态，
+    # 改成 static-framework 会让共存失效。
+    type: framework
+    platform: iOS
+    sources:
+      - path: PlayerEngineKit
+    dependencies:
+      - package: AetherEngine
+        product: AetherEngine
   TVBox-macOS:
     templates: [SharedApp]
     platform: macOS
@@ -129,6 +150,10 @@ targets:
         script: '"$SRCROOT/Scripts/embed-dandanplay-config.py"'
         basedOnDependencyAnalysis: false
     platform: iOS
+    # 只依赖 PlayerEngineKit，不直接依赖 AetherEngine（见上面 PlayerEngineKit 的注释）。
+    # XcodeGen 会把模板的依赖（TVCore）和这里的依赖合并，不是替换，TVCore 不会丢。
+    dependencies:
+      - target: PlayerEngineKit
     sources:
       - path: Runtime/AppleRuntime/Native/AppleRuntime.m
       # Python sources: opens the CPython that the embed step below adds (Scripts/build-apple-python.sh).
