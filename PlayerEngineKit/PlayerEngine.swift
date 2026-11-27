@@ -186,7 +186,7 @@ public final class PlayerEngine: ObservableObject {
             // 正是现在这条路要绕开的问题。默认路由会走到直播 ingest + 音频桥，
             // 由引擎自己的 FFmpeg 解 MP2。
             // liveJoinProfile 默认就是 .fastZap，这里写明是提醒这是切台速度的测试。
-            _ = try await engine.load(url: url, options: LoadOptions(isLive: true, liveJoinProfile: .fastZap, httpHeaders: headers))
+            _ = try await engine.load(url: url, options: LoadOptions(httpHeaders: headers, isLive: true, liveJoinProfile: .fastZap))
             loadSeconds = Date().timeIntervalSince(loadStartedAt ?? Date())
             loadResultText = "load() 已返回（\(String(format: "%.1f", loadSeconds)) 秒）"
             return true
@@ -242,7 +242,7 @@ public final class PlayerEngine: ObservableObject {
                 self.retuneText = "源端重置：已恢复"
             } else {
                 self.retuneText = "源端重置：恢复失败，重新加载同一频道…"
-                await self.load(url: url, headers: self.currentHeaders)
+                _ = await self.load(url: url, headers: self.currentHeaders)
             }
             self.retuneInFlight = false
         }
