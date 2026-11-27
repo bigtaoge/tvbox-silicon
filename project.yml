@@ -46,6 +46,18 @@ packages:
   AetherEngine:
     url: https://github.com/superuser404notfound/AetherEngine
     from: 7.76.0
+  # AetherEngine 依赖的动态 framework（FFmpegBuild 的 AetherLib* 全家 + LibDovi）。
+  # 必须在这里声明、并在下面挂给 TVBox-iOS：XcodeGen 只会把 App 目标直接依赖的
+  # 动态 framework 嵌进 App 包里；经 PlayerEngineKit → AetherEngine 传过来的
+  # 间接依赖不会被嵌进去，启动时 dyld 找不到库就直接闪退（2026-11-27 实测）。
+  # 版本与 AetherEngine 7.76.0 的 pin 一致（FFmpegBuild 3.19.x，LibDovi 2.2.x），
+  # SwiftPM 会解析成同一个版本，不会拉出两份。
+  FFmpegBuild:
+    url: https://github.com/superuser404notfound/FFmpegBuild
+    from: 3.19.3
+  LibDovi:
+    url: https://github.com/superuser404notfound/LibDovi
+    from: 2.2.0
 targetTemplates:
   SharedApp:
     type: application
@@ -152,8 +164,18 @@ targets:
     platform: iOS
     # 只依赖 PlayerEngineKit，不直接依赖 AetherEngine（见上面 PlayerEngineKit 的注释）。
     # XcodeGen 会把模板的依赖（TVCore）和这里的依赖合并，不是替换，TVCore 不会丢。
+    # 但 AetherFFmpegBuild（AetherLib* 全家）和 Dovi 必须直接挂给 App：
+    # 它们是动态 framework，启动时 dyld 要在 App 包里找到它们；XcodeGen 只嵌
+    # App 直接依赖的动态 framework，间接依赖（经 PlayerEngineKit 传过来的）
+    # 不会被嵌进去，缺了就会启动闪退。直接挂给 App 只解决“嵌进包里”，
+    # 不破坏隔离：App 本身不调 _av*，TVCore 的调用仍绑到静态 FFmpeg，
+    # PlayerEngineKit 里的调用仍绑到 AetherLibavcodec（两级命名空间）。
     dependencies:
       - target: PlayerEngineKit
+      - package: FFmpegBuild
+        product: AetherFFmpegBuild
+      - package: LibDovi
+        product: Dovi
     sources:
       - path: Runtime/AppleRuntime/Native/AppleRuntime.m
       # Python sources: opens the CPython that the embed step below adds (Scripts/build-apple-python.sh).
