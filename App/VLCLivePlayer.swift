@@ -136,22 +136,22 @@ private enum VLCPlayerState: Int {
         }.value
         guard loaded else { return false }
         guard let playerClass = NSClassFromString("VLCMediaPlayer") as? NSObject.Type else { return false }
-        // Build the player as [[VLCMediaPlayer alloc] init] through performSelector:
-        // a plain playerClass.init() traps (crashes) if the ObjC init returns nil
-        // (libvlc failed to start), while perform returns nil and degrades to an
-        // error overlay instead. Defensive: the 2026-11-27 tap crash survived this
-        // change (fix-3), so the init was not the cause, but the safe form stays.
+        // FIX-7 (2026-11-27): fix-6 proved the crash is in plain `init`, not setValue.
+        // Plain `init` -> initWithDrawable:nil options:nil -> uses [VLCLibrary sharedLibrary]
+        // (auto-created at framework load) -> libvlc_media_player_new(library.instance).
+        // If the shared library's libvlc instance is NULL/broken after dlopen, that
+        // returns NULL and NSAssert aborts. Use initWithOptions: with a non-empty array
+        // instead: it forces a FRESH private library (initWithOptions: on VLCLibrary)
+        // rather than the shared one. "--ignore-config" is a safe, real libvlc option.
+        // If this still crashes, libvlc_new itself is broken in this process; if it
+        // returns nil, prepare fails gracefully to an error overlay; if it works, the
+        // shared library was the problem.
         guard let allocated = (playerClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue() else { return false }
-        guard let player = allocated.perform(NSSelectorFromString("init"))?.takeRetainedValue() as? NSObject else { return false }
-        // BISECT (fix-6, 2026-11-27): the fix-5 build showed the error overlay
-        // instead of crashing, so dlopen is fine and the crash is in player
-        // creation (init or setValue). Skip the delegate KVC here to separate
-        // them: if live TV still crashes, the crash is in init (libvlc_new);
-        // if it does not crash, the crash was this setValue call, and the fix is
-        // to set the delegate via performSelector ("setDelegate:") instead of KVC.
-        // The player has no delegate in this build, so state/time will not update
-        // (do not expect the playing state to appear); this is diagnosis only.
-        // player.setValue(delegate, forKey: "delegate")
+        let playerOptions: NSArray = ["--ignore-config"]
+        guard let player = allocated.perform(NSSelectorFromString("initWithOptions:"), with: playerOptions)?.takeRetainedValue() as? NSObject else { return false }
+        // Delegate restored (fix-6 skipped it for diagnosis; the crash was in init,
+        // not here). setValue is KVC on the valid `delegate` property (weak, nonatomic).
+        player.setValue(delegate, forKey: "delegate")
         rawPlayer = player
         return true
     }
