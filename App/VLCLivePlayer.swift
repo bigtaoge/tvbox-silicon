@@ -135,15 +135,6 @@ private enum VLCPlayerState: Int {
             return VLCRuntime.load()
         }.value
         guard loaded else { return false }
-        // BISECT (fix-5, 2026-11-27): stop here on purpose. The diagnostics export
-        // shows a deterministic SIGABRT with no VLC log entry, and there is no
-        // 影匣Pro entry in iOS Analytics Data, so the crash cannot be symbolicated.
-        // This build still dlopens the framework but never creates a player.
-        // If live TV still crashes on tap, the crash is in dlopen (framework load).
-        // If it shows an error overlay instead, dlopen is fine and the crash is in
-        // player creation (init / setValue). Delete this return to restore playback.
-        Diagnostics.shared.record(.error, "player", "vlc bisect: framework loaded, player creation skipped")
-        return false
         guard let playerClass = NSClassFromString("VLCMediaPlayer") as? NSObject.Type else { return false }
         // Build the player as [[VLCMediaPlayer alloc] init] through performSelector:
         // a plain playerClass.init() traps (crashes) if the ObjC init returns nil
@@ -152,7 +143,15 @@ private enum VLCPlayerState: Int {
         // change (fix-3), so the init was not the cause, but the safe form stays.
         guard let allocated = (playerClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue() else { return false }
         guard let player = allocated.perform(NSSelectorFromString("init"))?.takeRetainedValue() as? NSObject else { return false }
-        player.setValue(delegate, forKey: "delegate")
+        // BISECT (fix-6, 2026-11-27): the fix-5 build showed the error overlay
+        // instead of crashing, so dlopen is fine and the crash is in player
+        // creation (init or setValue). Skip the delegate KVC here to separate
+        // them: if live TV still crashes, the crash is in init (libvlc_new);
+        // if it does not crash, the crash was this setValue call, and the fix is
+        // to set the delegate via performSelector ("setDelegate:") instead of KVC.
+        // The player has no delegate in this build, so state/time will not update
+        // (do not expect the playing state to appear); this is diagnosis only.
+        // player.setValue(delegate, forKey: "delegate")
         rawPlayer = player
         return true
     }
