@@ -78,8 +78,10 @@ jobs:
   build-ipa:
     name: Build TVBox-iOS (unsigned)
     # macOS runner is required for Xcode. Use macos-latest
-    # (Xcode 26.6, iOS 26.5 SDK) — the user wants the new version,
-    # and upstream code has been patched for it in
+    # (its default Xcode varies by image date — currently 26.x or 27.x).
+    # AetherEngine 7.76.0 requires Xcode 27.0, so the "Select Xcode 27"
+    # step below pins 27 explicitly instead of assuming the default.
+    # Upstream code has been patched for the new Xcode in
     # xcode26-compat.patch (see README there). Do NOT switch back
     # to macos-15: that only hides the incompatibility.
     runs-on: macos-latest
@@ -99,6 +101,34 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-path
           df -h
           sw_vers
+
+      # AetherEngine 7.76.0 requires Xcode 27.0 / Swift 6.4 (docs/installation.md).
+      # macos-latest's default Xcode depends on the image date (26.x or 27.x),
+      # so pick 27 explicitly instead of assuming it. If no Xcode 27 is on the
+      # image, fail here with a clear message rather than wasting the run on
+      # an SPM resolution error later.
+      - name: Select Xcode 27 (AetherEngine requires Xcode 27.0)
+        run: |
+          echo "Installed Xcodes:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "(none found under /Applications)"
+          DEFAULT_MAJOR="$(xcodebuild -version | head -1 | awk '{print $2}' | cut -d. -f1)"
+          if [ "$DEFAULT_MAJOR" = "27" ]; then
+            echo "Default Xcode is already 27.x, keeping it."
+          else
+            XCODE27="$(ls -d /Applications/Xcode_27*.app 2>/dev/null | grep -v -i beta | head -1 || true)"
+            if [ -z "$XCODE27" ]; then
+              XCODE27="$(ls -d /Applications/Xcode_27*.app 2>/dev/null | head -1 || true)"
+              [ -n "$XCODE27" ] && echo "Note: only a beta Xcode 27 is available ($XCODE27), using it."
+            fi
+            if [ -z "$XCODE27" ]; then
+              echo "::error::No Xcode 27 found on this runner (default is Xcode $DEFAULT_MAJOR). AetherEngine 7.76.0 requires Xcode 27.0 / Swift 6.4. Re-run on a runner image that ships Xcode 27 (e.g. the macOS 27 image)."
+              exit 1
+            fi
+            echo "Switching to $XCODE27"
+            sudo xcode-select -s "$XCODE27/Contents/Developer"
+          fi
+          xcodebuild -version
+          test "$(xcodebuild -version | head -1 | awk '{print $2}' | cut -d. -f1)" = "27"
 
       # build-java-host.sh needs JDK 19. It reads $JAVA_HOME
       # first and only falls back to /usr/libexec/java_home -v 19,
@@ -157,13 +187,6 @@ jobs:
             build/AppleRuntime
           key: tvbox-apple-runtime-ios-${{ runner.os }}-${{ hashFiles('Scripts/build-apple-jvm.sh', 'Scripts/package-apple-runtime.sh', 'Scripts/build-apple-interpreter.sh', 'Scripts/build-apple-libffi.sh', 'Scripts/build-apple-native-bindings.sh', 'Runtime/AppleRuntime/runtime-version') }}
 
-      # MobileVLCKit 3.7.5 的二进制约 233 MB；缓存后只在 Podfile 变时重新下载。
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Caches/CocoaPods
-          key: cocoapods-${{ runner.os }}-${{ hashFiles('Podfile') }}
-
       # ---- Prepare runtimes, in Docs/DEVELOPMENT.md order ----
       # build-script-host.sh / build-python-host.sh are only needed
       # by the macOS target, so they are intentionally skipped here.
@@ -216,27 +239,6 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      # CocoaPods + XcodeGen 的顺序不能错：xcodegen 会重写 .xcodeproj、
-      # 抹掉 pod 集成，所以每次构建都必须是 xcodegen -> pod install -> 归档。
-      # 空跑验证（补丁 19 第一步）：只加依赖、不改任何 App 代码，先确认
-      # CocoaPods + XcodeGen + 动态链接 + 自带 FFmpeg 共存一次通过。
-      - name: Install CocoaPods dependencies
-        run: |
-          pod --version || brew install cocoapods
-          pod install
-          test -f Podfile.lock
-          test -d TVBox.xcworkspace
-
-      # Podfile.lock 由这次 pod install 生成（锁定 3.7.5 的 SPEC CHECKSUM）；
-      # 从这次运行的 Artifacts 里下载它，提交进仓库，第二步的补丁包会把它带上。
-      - name: Upload Podfile.lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: Podfile-lock
-          path: Podfile.lock
-          if-no-files-found: error
-          retention-days: 7
-
       # ---- Archive with signing disabled ----
       # No DEVELOPMENT_TEAM, no upstream team WWNM49L69R, no
       # App Store certificate/profile: those are the upstream
@@ -251,7 +253,7 @@ jobs:
           # .app and no error message (failed run, 2026-11-20).
           set -o pipefail
           xcodebuild archive \
-            -workspace TVBox.xcworkspace \
+            -project TVBox.xcodeproj \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination "generic/platform=iOS" \
@@ -276,21 +278,6 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Info.plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")" = "com.bigtaoge.yingxiapro.ios"
           nm -gU "$APP/TVBox-iOS" | grep ' _JIMAGE_Open$'
-
-      # 懒加载验证（2026-11-26）：MobileVLCKit 必须嵌进包里，但 App 二进制
-      # 不能链接它——链接了 dyld 启动时就加载，内嵌运行环境会被挤坏
-      # （拉订阅、播点播闪退，见 Podfile）。oTool 查的是最终结果，
-      # 所以即使 CocoaPods 换了 xcconfig 的写法，这一步也会先失败，
-      # 而不是等装到手机上才发现。
-      - name: Verify MobileVLCKit is embedded, not linked
-        run: |
-          APP="build/ci/TVBox-iOS.xcarchive/Products/Applications/TVBox-iOS.app"
-          test -d "$APP/Frameworks/MobileVLCKit.framework"
-          test -f "$APP/Frameworks/MobileVLCKit.framework/MobileVLCKit"
-          if otool -L "$APP/TVBox-iOS" | grep -q "MobileVLCKit"; then
-            echo "ERROR: TVBox-iOS links MobileVLCKit (lazy load broken)"
-            exit 1
-          fi
 
       # An unsigned IPA is just Payload/*.app zipped, renamed .ipa
       - name: Package unsigned IPA
