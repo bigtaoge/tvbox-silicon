@@ -120,13 +120,18 @@ private enum VLCPlayerState: Int {
     var isReady: Bool { rawPlayer != nil }
 
     /// Loads the framework and creates the one persistent player, with `delegate` as
-    /// its delegate. The heavy part (JVM pre-warm + dlopen) runs off the main thread;
-    /// the player itself is created here, on the MainActor. Returns false when VLC
-    /// is unavailable — the session then shows an error instead of playing.
+    /// its delegate. The heavy part (dlopen) runs off the main thread; the player
+    /// itself is created here, on the MainActor. Returns false when VLC is
+    /// unavailable — the session then shows an error instead of playing.
     func prepare(delegate: VLCLiveSession) async -> Bool {
         if rawPlayer != nil { return true }
         let loaded = await Task.detached(priority: .userInitiated) {
-            VLCRuntime.prewarmJVM()
+            // Pre-warm DISABLED for diagnosis (2026-11-27): fix-3 is confirmed on
+            // GitHub (730 lines, RTLD_GLOBAL) and live TV still crashes on tap, so
+            // the pre-warm — the one step fix-3 did not change — is the prime
+            // suspect. If live TV opens now, the pre-warm was the crash; restore
+            // it only with a safer trigger. The JVM is already running here
+            // (subscriptions pulled), so skipping it is safe for this test.
             return VLCRuntime.load()
         }.value
         guard loaded else { return false }
@@ -134,7 +139,8 @@ private enum VLCPlayerState: Int {
         // Build the player as [[VLCMediaPlayer alloc] init] through performSelector:
         // a plain playerClass.init() traps (crashes) if the ObjC init returns nil
         // (libvlc failed to start), while perform returns nil and degrades to an
-        // error overlay instead. This was the live-TV tap crash (2026-11-27).
+        // error overlay instead. Defensive: the 2026-11-27 tap crash survived this
+        // change (fix-3), so the init was not the cause, but the safe form stays.
         guard let allocated = (playerClass as AnyObject).perform(NSSelectorFromString("alloc"))?.takeRetainedValue() else { return false }
         guard let player = allocated.perform(NSSelectorFromString("init"))?.takeRetainedValue() as? NSObject else { return false }
         player.setValue(delegate, forKey: "delegate")
