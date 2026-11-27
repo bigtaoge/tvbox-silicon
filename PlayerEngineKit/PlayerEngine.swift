@@ -233,27 +233,32 @@ public final class PlayerEngine: ObservableObject {
     }
 
     // MARK: - 状态镜像
-
+    //
+    // 注意：这里不用 Combine 的 `.assign(to: &$x)`。Xcode 27 / Swift 6.4 下
+    // `.assign(to:)` 解析出来的返回值是空元组 `()`，接不上 `.store(in:)`，
+    // 14 处全报 "value of tuple type '()' has no member 'store"。
+    // 改成 `.sink { [weak self] in self?.x = value }`，功能完全一样，
+    // 是 Combine 里最稳的订阅写法。
     private func subscribe(to engine: AetherEngine) {
         engine.$state
             .receive(on: DispatchQueue.main)
             .map { String(describing: $0) }
-            .assign(to: &$stateText)
+            .sink { [weak self] value in self?.stateText = value }
             .store(in: &cancellables)
         engine.$playbackPhase
             .receive(on: DispatchQueue.main)
             .map { String(describing: $0) }
-            .assign(to: &$phaseText)
+            .sink { [weak self] value in self?.phaseText = value }
             .store(in: &cancellables)
         engine.$videoRoute
             .receive(on: DispatchQueue.main)
             .map { String(describing: $0) }
-            .assign(to: &$routeText)
+            .sink { [weak self] value in self?.routeText = value }
             .store(in: &cancellables)
         engine.$audioDelivery
             .receive(on: DispatchQueue.main)
             .map { String(describing: $0) }
-            .assign(to: &$audioDeliveryText)
+            .sink { [weak self] value in self?.audioDeliveryText = value }
             .store(in: &cancellables)
         engine.$errorInfo
             .receive(on: DispatchQueue.main)
@@ -262,11 +267,11 @@ public final class PlayerEngine: ObservableObject {
                 // 按 kind 分类，不要按 message 文本（message 可能是设备语言的本地化文本）。
                 return "\(info.kind.rawValue): \(info.message)"
             }
-            .assign(to: &$errorText)
+            .sink { [weak self] value in self?.errorText = value }
             .store(in: &cancellables)
         engine.$hasFirstFrameReadyForDisplay
             .receive(on: DispatchQueue.main)
-            .assign(to: &$hasFirstFrame)
+            .sink { [weak self] value in self?.hasFirstFrame = value }
             .store(in: &cancellables)
         engine.$startupProgress
             .receive(on: DispatchQueue.main)
@@ -274,19 +279,19 @@ public final class PlayerEngine: ObservableObject {
                 guard let progress else { return "" }
                 return "\(Int(progress.fraction * 100))% · \(String(describing: progress.stage))"
             }
-            .assign(to: &$startupText)
+            .sink { [weak self] value in self?.startupText = value }
             .store(in: &cancellables)
         engine.$duration
             .receive(on: DispatchQueue.main)
-            .assign(to: &$duration)
+            .sink { [weak self] value in self?.duration = value }
             .store(in: &cancellables)
         engine.clock.$currentTime
             .receive(on: DispatchQueue.main)
-            .assign(to: &$currentTime)
+            .sink { [weak self] value in self?.currentTime = value }
             .store(in: &cancellables)
         engine.clock.$behindLiveSeconds
             .receive(on: DispatchQueue.main)
-            .assign(to: &$behindLiveSeconds)
+            .sink { [weak self] value in self?.behindLiveSeconds = value }
             .store(in: &cancellables)
         engine.$audioTracks
             .receive(on: DispatchQueue.main)
@@ -303,11 +308,11 @@ public final class PlayerEngine: ObservableObject {
                     )
                 }
             }
-            .assign(to: &$audioTracks)
+            .sink { [weak self] value in self?.audioTracks = value }
             .store(in: &cancellables)
         engine.$activeAudioTrackIndex
             .receive(on: DispatchQueue.main)
-            .assign(to: &$activeAudioTrackId)
+            .sink { [weak self] value in self?.activeAudioTrackId = value }
             .store(in: &cancellables)
 
         // 退台请求：一个引擎只订阅一次，在第一次 load 之前（LiveHost contract 1）。
@@ -327,12 +332,12 @@ public final class PlayerEngine: ObservableObject {
         AetherEngineLogRelay.shared.subject
             .receive(on: DispatchQueue.main)
             .scan([String]()) { lines, line in Array((lines + [line]).suffix(60)) }
-            .assign(to: &$logLines)
+            .sink { [weak self] value in self?.logLines = value }
             .store(in: &cancellables)
         AetherEngineLogRelay.shared.subject
             .filter { $0.contains("[FFmpeg]") }
             .receive(on: DispatchQueue.main)
-            .assign(to: &$ffmpegLine)
+            .sink { [weak self] value in self?.ffmpegLine = value }
             .store(in: &cancellables)
     }
 }
