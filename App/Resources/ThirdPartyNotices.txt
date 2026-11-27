@@ -777,6 +777,42 @@ GNU Lesser General Public License version 2.1 or later (LGPLv2.1+). Used only by
 live TV player, dynamically linked, so the library can be replaced. The full license
 text ships in the MobileVLCKit framework (COPYING.txt); the source is at videolan.org.
 
+AetherEngine 7.76.0 (live TV verification build)
+https://github.com/superuser404notfound/AetherEngine
+https://github.com/superuser404notfound/AetherEngine/releases/tag/7.76.0
+GNU Lesser General Public License version 3.0 (LGPL-3.0) with an Apple
+Store / DRM exception. The exception explicitly allows distribution through
+app stores (Apple App Store, TestFlight, and so on); without it, their terms
+would conflict with LGPL sections 4 to 6. Changes to the engine itself must
+still be released under the LGPL. The exception covers AetherEngine's own
+code, not its dependencies. The engine is linked into the PlayerEngineKit
+dynamic framework, not into the app executable.
+
+FFmpeg (via FFmpegBuild 3.19.3)
+https://github.com/superuser404notfound/FFmpegBuild
+FFmpeg (libavcodec, libavformat, libavutil, libswresample, libswscale,
+libavfilter): GNU Lesser General Public License version 2.1 or later
+(LGPL-2.1+), with no GPL components. Reaches the app as dynamically linked
+frameworks (AetherLibavcodec, AetherLibavformat, AetherLibavutil,
+AetherLibswresample, AetherLibswscale, AetherLibavfilter), so the library
+can be replaced. Components and their licenses: dav1d (BSD-2-Clause), zimg
+(WTFPL), libzvbi (LGPL-2.0+, its ure.c MIT). The license texts are in the
+FFmpegBuild repository (LICENSES/).
+
+libdovi (via LibDovi)
+https://github.com/superuser404notfound/LibDovi
+The compiled dolby_vision crate from dovi_tool, Copyright (c) quietvoid and
+contributors, dual-licensed MIT OR Apache-2.0 and used here under the MIT
+option.
+
+Anime4K
+https://github.com/bloc97/Anime4K
+The line-art scaler (Upscale CNN x2 (S)), Copyright (c) 2019-2021 bloc97, MIT.
+
+LibTrueHD and SMBClient are not linked in this build (the TrueHDObjectAudio
+trait is off and AetherEngineSMB is not linked), so no notice is needed
+for them.
+
 Exact source revisions, source URLs, build inputs and platform modifications
 are recorded in Scripts/build-apple-*.sh and Runtime/AppleRuntime/patches.
 These notices do not replace the accompanying upstream licence texts.
