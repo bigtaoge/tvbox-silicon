@@ -135,6 +135,15 @@ private enum VLCPlayerState: Int {
             return VLCRuntime.load()
         }.value
         guard loaded else { return false }
+        // BISECT (fix-5, 2026-11-27): stop here on purpose. The diagnostics export
+        // shows a deterministic SIGABRT with no VLC log entry, and there is no
+        // 影匣Pro entry in iOS Analytics Data, so the crash cannot be symbolicated.
+        // This build still dlopens the framework but never creates a player.
+        // If live TV still crashes on tap, the crash is in dlopen (framework load).
+        // If it shows an error overlay instead, dlopen is fine and the crash is in
+        // player creation (init / setValue). Delete this return to restore playback.
+        Diagnostics.shared.record(.error, "player", "vlc bisect: framework loaded, player creation skipped")
+        return false
         guard let playerClass = NSClassFromString("VLCMediaPlayer") as? NSObject.Type else { return false }
         // Build the player as [[VLCMediaPlayer alloc] init] through performSelector:
         // a plain playerClass.init() traps (crashes) if the ObjC init returns nil
