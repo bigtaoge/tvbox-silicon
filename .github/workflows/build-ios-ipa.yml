@@ -77,14 +77,16 @@ concurrency:
 jobs:
   build-ipa:
     name: Build TVBox-iOS (unsigned)
-    # macOS runner is required for Xcode. Use macos-latest
-    # (its default Xcode varies by image date — currently 26.x or 27.x).
-    # AetherEngine 7.76.0 requires Xcode 27.0, so the "Select Xcode 27"
-    # step below pins 27 explicitly instead of assuming the default.
+    # macOS runner is required for Xcode. GitHub now keys its macOS images to
+    # the Xcode major version, not the macOS version, so the Xcode 27 image is
+    # `xcode-27` (there is no `macos-27` label). It is GA since 2026-10-15,
+    # arm64-only, and its default Xcode is 27.x. AetherEngine 7.76.0 requires
+    # Xcode 27.0, so use this label instead of macos-latest (whose default
+    # Xcode is 26.x and has no Xcode 27 installed at all).
     # Upstream code has been patched for the new Xcode in
     # xcode26-compat.patch (see README there). Do NOT switch back
     # to macos-15: that only hides the incompatibility.
-    runs-on: macos-latest
+    runs-on: xcode-27
     # 360 is the maximum for a GitHub-hosted runner job.
     timeout-minutes: 360
     env:
@@ -103,10 +105,10 @@ jobs:
           sw_vers
 
       # AetherEngine 7.76.0 requires Xcode 27.0 / Swift 6.4 (docs/installation.md).
-      # macos-latest's default Xcode depends on the image date (26.x or 27.x),
-      # so pick 27 explicitly instead of assuming it. If no Xcode 27 is on the
-      # image, fail here with a clear message rather than wasting the run on
-      # an SPM resolution error later.
+      # The `xcode-27` runner's default Xcode is already 27.x, so this step
+      # normally keeps it. It only switches if the default is not 27, and
+      # fails here with a clear message instead of wasting the run on an
+      # SPM resolution error later.
       - name: Select Xcode 27 (AetherEngine requires Xcode 27.0)
         run: |
           echo "Installed Xcodes:"
@@ -121,7 +123,7 @@ jobs:
               [ -n "$XCODE27" ] && echo "Note: only a beta Xcode 27 is available ($XCODE27), using it."
             fi
             if [ -z "$XCODE27" ]; then
-              echo "::error::No Xcode 27 found on this runner (default is Xcode $DEFAULT_MAJOR). AetherEngine 7.76.0 requires Xcode 27.0 / Swift 6.4. Re-run on a runner image that ships Xcode 27 (e.g. the macOS 27 image)."
+              echo "::error::No Xcode 27 found on this runner (default is Xcode $DEFAULT_MAJOR). AetherEngine 7.76.0 requires Xcode 27.0 / Swift 6.4. Re-run with runs-on: xcode-27."
               exit 1
             fi
             echo "Switching to $XCODE27"
