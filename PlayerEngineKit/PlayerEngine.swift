@@ -118,6 +118,8 @@ public final class PlayerEngine: ObservableObject {
 
     private var cancellables: Set<AnyCancellable> = []
     private var currentURL: URL?
+    /// The headers the current URL was loaded with, so a retune reloads with the same ones.
+    private var currentHeaders: [String: String] = [:]
 
     // 退台护栏（照抄 LiveHost 的数：一次只跑一个、间隔 20 秒、一个会话最多 3 次，
     // 否则死掉的上游会变成无限重试循环）。
@@ -149,6 +151,14 @@ public final class PlayerEngine: ObservableObject {
     /// 返回 true = load() 正常返回（不代表已有画面，看 hasFirstFrame）。
     @discardableResult
     public func load(urlString: String) async -> Bool {
+        await load(urlString: urlString, headers: [:])
+    }
+
+    /// 播一个直播 URL，带上频道要发的请求头（User-Agent / Referer / Authorization 等）。
+    /// 请求头经 LoadOptions.httpHeaders 发到 playlist、每个分片和每个 AES key
+    /// （AetherEngine #119；文档 quick-start 的用法）。测试页不用请求头，走上面那个。
+    @discardableResult
+    public func load(urlString: String, headers: [String: String]) async -> Bool {
         let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed),
               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
@@ -159,15 +169,16 @@ public final class PlayerEngine: ObservableObject {
         retuneCount = 0
         lastRetuneAt = nil
         retuneText = ""
-        return await load(url: url)
+        return await load(url: url, headers: headers)
     }
 
-    private func load(url: URL) async -> Bool {
+    private func load(url: URL, headers: [String: String] = [:]) async -> Bool {
         guard let engine else {
             loadResultText = "引擎未创建：\(creationError ?? "未知原因")"
             return false
         }
         currentURL = url
+        currentHeaders = headers
         loadStartedAt = Date()
         loadResultText = "正在加载…"
         do {
@@ -175,7 +186,7 @@ public final class PlayerEngine: ObservableObject {
             // 正是现在这条路要绕开的问题。默认路由会走到直播 ingest + 音频桥，
             // 由引擎自己的 FFmpeg 解 MP2。
             // liveJoinProfile 默认就是 .fastZap，这里写明是提醒这是切台速度的测试。
-            _ = try await engine.load(url: url, options: LoadOptions(isLive: true, liveJoinProfile: .fastZap))
+            _ = try await engine.load(url: url, options: LoadOptions(isLive: true, liveJoinProfile: .fastZap, httpHeaders: headers))
             loadSeconds = Date().timeIntervalSince(loadStartedAt ?? Date())
             loadResultText = "load() 已返回（\(String(format: "%.1f", loadSeconds)) 秒）"
             return true
@@ -193,8 +204,13 @@ public final class PlayerEngine: ObservableObject {
     public func stop() {
         engine?.stop()
         currentURL = nil
+        currentHeaders = [:]
         loadResultText = "已停止"
     }
+
+    /// 暂停 / 继续（锁屏和耳机线的播放/暂停键用；直播暂停后继续从直播边沿播）。
+    public func pause() { engine?.pause() }
+    public func resume() { engine?.play() }
 
     public func selectAudioTrack(id: Int) {
         engine?.selectAudioTrack(index: id)
@@ -226,7 +242,7 @@ public final class PlayerEngine: ObservableObject {
                 self.retuneText = "源端重置：已恢复"
             } else {
                 self.retuneText = "源端重置：恢复失败，重新加载同一频道…"
-                await self.load(url: url)
+                await self.load(url: url, headers: self.currentHeaders)
             }
             self.retuneInFlight = false
         }
